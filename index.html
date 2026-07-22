@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
+<title>מעקב פיננסי</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;900&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0B1420;
+    --surface:#121F30;
+    --surface-2:#1B2B42;
+    --surface-3:#243A57;
+    --line:#22344c;
+    --text:#EAF1F8;
+    --text-muted:#84A0BC;
+    --income:#4FD1A5;
+    --expense:#FF6F6B;
+    --loan:#F2B84B;
+    --saving:#7C9EFF;
+    --accent:#4FD1A5;
+    --danger:#FF6F6B;
+    --radius:18px;
+    --radius-sm:12px;
+    --shadow: 0 10px 30px -12px rgba(0,0,0,0.55);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1200px 600px at 100% -10%, #16283f 0%, transparent 60%),
+      radial-gradient(900px 500px at -10% 0%, #142338 0%, transparent 55%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Heebo', system-ui, sans-serif;
+    min-height:100vh;
+    padding-bottom:100px;
+  }
+  .mono{font-family:'Roboto Mono', monospace; font-variant-numeric: tabular-nums;}
+  a{color:inherit;}
+
+  header.top{
+    padding:22px 18px 8px;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  header.top .brand{
+    display:flex; align-items:center; gap:10px;
+  }
+  header.top .brand .dot{
+    width:10px;height:10px;border-radius:50%;
+    background:var(--income);
+    box-shadow:0 0 12px var(--income);
+  }
+  header.top h1{font-size:17px; font-weight:700; margin:0; letter-spacing:.2px;}
+  header.top .settings-btn{
+    background:var(--surface); border:1px solid var(--line); color:var(--text-muted);
+    width:38px;height:38px;border-radius:12px; display:flex;align-items:center;justify-content:center;
+    cursor:pointer;
+  }
+
+  .period-tabs{
+    display:flex; gap:8px; padding:0 18px 12px; max-width:520px; margin:0 auto;
+  }
+  .period-tabs button{
+    flex:1; padding:9px; border-radius:12px; border:1px solid var(--line);
+    background:var(--surface); color:var(--text-muted); font-family:inherit; font-size:12.5px; font-weight:500;
+    cursor:pointer;
+  }
+  .period-tabs button.active{background:var(--surface-3); color:var(--text); border-color:#33507a;}
+
+  .month-nav{
+    display:flex; align-items:center; justify-content:center; gap:14px;
+    padding:6px 18px 18px;
+  }
+  .month-nav button{
+    background:var(--surface); border:1px solid var(--line); color:var(--text);
+    width:34px;height:34px;border-radius:10px; font-size:16px; cursor:pointer;
+  }
+  .month-nav .label{font-size:15px; font-weight:500; min-width:140px; text-align:center; color:var(--text-muted);
+    cursor:pointer; border-bottom:1px dashed #33507a; padding-bottom:2px; user-select:none;}
+
+  main{padding:0 16px; max-width:520px; margin:0 auto;}
+
+  /* Hero cash-flow ring */
+  .hero{
+    background:linear-gradient(165deg, var(--surface-2), var(--surface));
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:22px;
+    display:flex; align-items:center; gap:20px;
+    box-shadow:var(--shadow);
+    margin-bottom:14px;
+  }
+  .ring-wrap{position:relative; width:110px;height:110px; flex-shrink:0;}
+  .ring-wrap svg{transform:rotate(-90deg);}
+  .ring-center{
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  }
+  .ring-center .pct{font-size:20px; font-weight:700;}
+  .ring-center .pct-label{font-size:10px; color:var(--text-muted);}
+  .hero-info{flex:1;}
+  .hero-info .balance-label{font-size:12px; color:var(--text-muted); margin-bottom:2px;}
+  .hero-info .balance{font-size:26px; font-weight:700;}
+  .hero-info .balance.neg{color:var(--expense);}
+  .hero-info .balance.pos{color:var(--income);}
+  .hero-info .sub{font-size:12px; color:var(--text-muted); margin-top:4px;}
+
+  .stat-row{display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:14px;}
+  .stat-card{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-sm);
+    padding:12px 10px; text-align:center;
+  }
+  .stat-card .icon{font-size:15px; margin-bottom:4px;}
+  .stat-card .val{font-size:15px; font-weight:700;}
+  .stat-card .lab{font-size:10.5px; color:var(--text-muted); margin-top:2px;}
+  .stat-card.income .val{color:var(--income);}
+  .stat-card.expense .val{color:var(--expense);}
+  .stat-card.saving .val{color:var(--saving);}
+
+  .card{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    padding:18px; margin-bottom:14px;
+  }
+  .card h2{font-size:14px; font-weight:700; margin:0 0 12px; display:flex; align-items:center; justify-content:space-between;}
+  .card h2 span.tag{font-size:10.5px; font-weight:500; color:var(--text-muted); background:var(--surface-2); padding:3px 8px; border-radius:20px;}
+
+  .chart-wrap{position:relative; height:230px;}
+  .chart-wrap.small{height:190px;}
+
+  .cat-list{list-style:none; margin:14px 0 0; padding:0; display:flex; flex-direction:column; gap:10px;}
+  .cat-list li{display:flex; align-items:center; gap:10px; font-size:13px;}
+  .cat-list .swatch{width:10px;height:10px;border-radius:3px; flex-shrink:0;}
+  .cat-list .name{flex:1; color:var(--text);}
+  .cat-list .amt{color:var(--text-muted);}
+
+  .tabs{display:flex; gap:8px; margin-bottom:14px;}
+  .tabs button{
+    flex:1; padding:10px; border-radius:12px; border:1px solid var(--line);
+    background:var(--surface); color:var(--text-muted); font-family:inherit; font-size:13px; font-weight:500;
+    cursor:pointer;
+  }
+  .tabs button.active{background:var(--surface-3); color:var(--text); border-color:#33507a;}
+
+  .tx-item{
+    display:flex; align-items:center; gap:12px; padding:12px 4px; border-bottom:1px solid var(--line);
+  }
+  .tx-item:last-child{border-bottom:none;}
+  .tx-item .type-dot{width:9px;height:9px;border-radius:50%; flex-shrink:0;}
+  .tx-item .info{flex:1; min-width:0;}
+  .tx-item .cat{font-size:13.5px; font-weight:500;}
+  .tx-item .meta{font-size:11px; color:var(--text-muted); margin-top:2px;}
+  .tx-item .amt{font-size:14px; font-weight:700; flex-shrink:0;}
+  .tx-item .amt.income{color:var(--income);}
+  .tx-item .amt.expense{color:var(--expense);}
+  .tx-item .del{background:none;border:none;color:var(--text-muted); font-size:16px; cursor:pointer; padding:4px;}
+  .empty{text-align:center; color:var(--text-muted); font-size:13px; padding:30px 10px;}
+
+  .fab{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+    background:var(--income); color:#06231a; border:none; border-radius:30px;
+    padding:14px 28px; font-family:inherit; font-size:15px; font-weight:700;
+    display:flex; align-items:center; gap:8px; cursor:pointer;
+    box-shadow:0 10px 25px -6px rgba(79,209,165,0.5);
+    z-index:40;
+  }
+
+  .sheet-overlay{
+    position:fixed; inset:0; background:rgba(4,9,15,0.7); backdrop-filter:blur(2px);
+    display:none; align-items:flex-end; justify-content:center; z-index:100;
+  }
+  .sheet-overlay.open{display:flex;}
+  .sheet{
+    background:var(--surface); width:100%; max-width:520px; border-radius:22px 22px 0 0;
+    padding:20px 18px 26px; border-top:1px solid var(--line);
+    max-height:88vh; overflow-y:auto;
+  }
+  .sheet .handle{width:36px;height:4px;background:var(--line);border-radius:4px;margin:0 auto 16px;}
+  .sheet h3{margin:0 0 16px; font-size:16px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;}
+  .field input, .field select, .field textarea{
+    width:100%; background:var(--surface-2); border:1px solid var(--line); color:var(--text);
+    border-radius:10px; padding:11px 12px; font-family:inherit; font-size:14.5px;
+  }
+  .type-pick{display:grid; grid-template-columns:repeat(5,1fr); gap:6px;}
+  .type-pick button{
+    border:1px solid var(--line); background:var(--surface-2); color:var(--text-muted);
+    border-radius:10px; padding:8px 2px; font-family:inherit; font-size:11px; cursor:pointer;
+  }
+  .type-pick button.sel{background:var(--surface-3); color:var(--text); border-color:#33507a;}
+  .sheet .actions{display:flex; gap:10px; margin-top:6px;}
+  .btn{
+    flex:1; padding:13px; border-radius:12px; border:none; font-family:inherit; font-size:14.5px; font-weight:700; cursor:pointer;
+  }
+  .btn.primary{background:var(--income); color:#06231a;}
+  .btn.ghost{background:var(--surface-2); color:var(--text-muted); border:1px solid var(--line);}
+
+  .loading, .no-config{
+    text-align:center; padding:60px 24px; color:var(--text-muted); font-size:13.5px;
+  }
+  .no-config .btn{margin-top:16px; display:inline-block; width:auto; padding:12px 26px;}
+  .toast{
+    position:fixed; bottom:100px; left:50%; transform:translateX(-50%);
+    background:var(--surface-3); color:var(--text); padding:10px 18px; border-radius:20px;
+    font-size:13px; z-index:200; opacity:0; pointer-events:none; transition:opacity .25s;
+    border:1px solid #33507a;
+  }
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand"><span class="dot"></span><h1>מעקב פיננסי</h1></div>
+  <button class="settings-btn" id="settingsBtn">⚙</button>
+</header>
+
+<div class="period-tabs" id="periodTabs">
+  <button data-period="day">יומי</button>
+  <button data-period="month">חודשי</button>
+  <button data-period="year">שנתי</button>
+</div>
+
+<div class="month-nav">
+  <button id="prevPeriod">‹</button>
+  <div class="label" id="monthLabel">—</div>
+  <button id="nextPeriod">›</button>
+</div>
+
+<main id="app">
+  <div class="loading" id="loadingState">טוען נתונים…</div>
+</main>
+
+<button class="fab" id="addBtn" style="display:none;">＋ הוסף תנועה</button>
+
+<!-- Add transaction sheet -->
+<div class="sheet-overlay" id="addOverlay">
+  <div class="sheet">
+    <div class="handle"></div>
+    <h3>תנועה חדשה</h3>
+    <div class="field">
+      <label>סוג</label>
+      <div class="type-pick" id="typePick">
+        <button data-type="הכנסה">הכנסה</button>
+        <button data-type="קבועה">קבועה</button>
+        <button data-type="משתנה">משתנה</button>
+        <button data-type="הלוואה">הלוואה</button>
+        <button data-type="חיסכון">חיסכון</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>קטגוריה</label>
+      <select id="catSelect"></select>
+    </div>
+    <div class="field" id="newCatField" style="display:none;">
+      <label>שם הקטגוריה החדשה</label>
+      <input type="text" id="newCatInput" placeholder="לדוגמה: מתנות">
+    </div>
+    <div class="field">
+      <label>סכום (₪)</label>
+      <input type="number" id="amountInput" inputmode="decimal" placeholder="0">
+    </div>
+    <div class="field">
+      <label>תאריך</label>
+      <input type="date" id="dateInput">
+    </div>
+    <div class="field">
+      <label>הערה (אופציונלי)</label>
+      <input type="text" id="noteInput" placeholder="לדוגמה: סופר יום שישי">
+    </div>
+    <div class="actions">
+      <button class="btn ghost" id="cancelAdd">ביטול</button>
+      <button class="btn primary" id="saveAdd">שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings sheet -->
+<div class="sheet-overlay" id="settingsOverlay">
+  <div class="sheet">
+    <div class="handle"></div>
+    <h3>הגדרות חיבור</h3>
+    <div class="field">
+      <label>כתובת ה-Web App (Google Apps Script)</label>
+      <input type="text" id="urlInput" placeholder="https://script.google.com/macros/s/.../exec">
+    </div>
+    <div class="actions">
+      <button class="btn ghost" id="cancelSettings">ביטול</button>
+      <button class="btn primary" id="saveSettings">שמור והתחבר</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Date/Month/Year picker sheet -->
+<div class="sheet-overlay" id="datePickerOverlay">
+  <div class="sheet">
+    <div class="handle"></div>
+    <h3 id="datePickerTitle">בחירת תאריך</h3>
+    <div class="field" id="datePickerField"></div>
+    <div class="actions">
+      <button class="btn ghost" id="cancelDatePicker">ביטול</button>
+      <button class="btn primary" id="confirmDatePicker">אישור</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const EXPENSE_TYPES = ['קבועה','משתנה','הלוואה'];
+const TYPE_COLORS = {'הכנסה':'#4FD1A5','קבועה':'#FF6F6B','משתנה':'#F2985E','הלוואה':'#F2B84B','חיסכון':'#7C9EFF'};
+const CAT_PALETTE = ['#4FD1A5','#FF6F6B','#F2B84B','#7C9EFF','#B98CFF','#4FC3E8','#F2985E','#E888C0','#8CE87B','#E8D24F','#7BB0E8','#E86B8C'];
+
+const MONTH_NAMES = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+const MONTH_SHORT = ['ינו','פבר','מרץ','אפר','מאי','יונ','יול','אוג','ספט','אוק','נוב','דצמ'];
+const WEEKDAY_NAMES = ['יום א','יום ב','יום ג','יום ד','יום ה','יום ו','שבת'];
+
+let state = {
+  webAppUrl: localStorage.getItem('mf_webapp_url') || '',
+  transactions: [],
+  categories: [],
+  periodType: 'month', // 'day' | 'month' | 'year'
+  offsets: { day: 0, month: 0, year: 0 },
+  activeTab: 'summary',
+  charts: {}
+};
+
+function monthKeyFromOffset(offset){
+  const d = new Date();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + offset);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+}
+function monthLabelHe(key){
+  const [y,m] = key.split('-').map(Number);
+  return MONTH_NAMES[m-1] + ' ' + y;
+}
+function dayKeyFromOffset(offset){
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function dayLabelHe(key){
+  const [y,m,dd] = key.split('-').map(Number);
+  const d = new Date(y, m-1, dd);
+  return WEEKDAY_NAMES[d.getDay()] + ', ' + dd + ' ב' + MONTH_NAMES[m-1] + ' ' + y;
+}
+function yearKeyFromOffset(offset){
+  return String(new Date().getFullYear() + offset);
+}
+function periodKey(type, offset){
+  if(type==='day') return dayKeyFromOffset(offset);
+  if(type==='year') return yearKeyFromOffset(offset);
+  return monthKeyFromOffset(offset);
+}
+function periodLabel(type, key){
+  if(type==='day') return dayLabelHe(key);
+  if(type==='year') return 'שנת ' + key;
+  return monthLabelHe(key);
+}
+function fmt(n){
+  return '₪' + Math.round(n).toLocaleString('he-IL');
+}
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+// ---------- Settings ----------
+document.getElementById('settingsBtn').onclick = () => {
+  document.getElementById('urlInput').value = state.webAppUrl;
+  document.getElementById('settingsOverlay').classList.add('open');
+};
+document.getElementById('cancelSettings').onclick = () => {
+  document.getElementById('settingsOverlay').classList.remove('open');
+};
+document.getElementById('saveSettings').onclick = () => {
+  const url = document.getElementById('urlInput').value.trim();
+  if(!url) return;
+  state.webAppUrl = url;
+  try{ localStorage.setItem('mf_webapp_url', url); }catch(e){}
+  document.getElementById('settingsOverlay').classList.remove('open');
+  loadData();
+};
+
+// ---------- Data fetching ----------
+async function loadData(){
+  const app = document.getElementById('app');
+  const fab = document.getElementById('addBtn');
+  if(!state.webAppUrl){
+    app.innerHTML = `<div class="no-config">
+      <div>כדי להתחיל, חברו את האפליקציה לגיליון Google Sheets שלכם.</div>
+      <button class="btn primary" onclick="document.getElementById('settingsBtn').click()">חיבור עכשיו</button>
+    </div>`;
+    fab.style.display = 'none';
+    return;
+  }
+  app.innerHTML = '<div class="loading">טוען נתונים…</div>';
+  fab.style.display = 'none';
+  try{
+    const res = await fetch(state.webAppUrl);
+    const data = await res.json();
+    if(!data.ok) throw new Error(data.error || 'שגיאה לא ידועה');
+    state.transactions = data.transactions || [];
+    state.categories = data.categories || [];
+    fab.style.display = 'flex';
+    render();
+  }catch(err){
+    app.innerHTML = `<div class="no-config">
+      <div>לא הצלחנו להתחבר לגיליון.<br>ודאו שכתובת ה-Web App נכונה ושהיא פרוסה כ"Anyone".</div>
+      <button class="btn primary" onclick="document.getElementById('settingsBtn').click()">בדיקת הגדרות</button>
+    </div>`;
+  }
+}
+
+// ---------- Period nav ----------
+document.getElementById('prevPeriod').onclick = () => { state.offsets[state.periodType]--; render(); };
+document.getElementById('nextPeriod').onclick = () => { state.offsets[state.periodType]++; render(); };
+document.querySelectorAll('#periodTabs button').forEach(btn => {
+  btn.onclick = () => { state.periodType = btn.dataset.period; render(); };
+});
+
+// ---------- Direct date/month/year picker ----------
+function daysBetween(dateStr){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = new Date(dateStr + 'T00:00:00');
+  return Math.round((d - today) / 86400000);
+}
+function monthsBetween(monthStr){
+  const [y,m] = monthStr.split('-').map(Number);
+  const now = new Date();
+  return (y - now.getFullYear()) * 12 + (m - (now.getMonth() + 1));
+}
+function yearsBetween(yearNum){
+  return yearNum - new Date().getFullYear();
+}
+document.getElementById('monthLabel').onclick = () => {
+  const type = state.periodType;
+  const key = periodKey(type, state.offsets[type]);
+  const field = document.getElementById('datePickerField');
+  const titles = { day:'בחירת יום', month:'בחירת חודש', year:'בחירת שנה' };
+  document.getElementById('datePickerTitle').textContent = titles[type];
+  if(type === 'day'){
+    field.innerHTML = `<label>תאריך</label><input type="date" id="pickerInput" value="${key}">`;
+  } else if(type === 'month'){
+    field.innerHTML = `<label>חודש</label><input type="month" id="pickerInput" value="${key}">`;
+  } else {
+    field.innerHTML = `<label>שנה</label><input type="number" id="pickerInput" value="${key}" min="2000" max="2100" step="1">`;
+  }
+  document.getElementById('datePickerOverlay').classList.add('open');
+};
+document.getElementById('cancelDatePicker').onclick = () => {
+  document.getElementById('datePickerOverlay').classList.remove('open');
+};
+document.getElementById('confirmDatePicker').onclick = () => {
+  const type = state.periodType;
+  const val = document.getElementById('pickerInput').value;
+  if(!val) return;
+  let offset;
+  if(type === 'day') offset = daysBetween(val);
+  else if(type === 'month') offset = monthsBetween(val);
+  else offset = yearsBetween(Number(val));
+  state.offsets[type] = offset;
+  document.getElementById('datePickerOverlay').classList.remove('open');
+  render();
+};
+
+// ---------- Add transaction sheet ----------
+const NEW_CAT_VALUE = '__new__';
+let selectedType = 'משתנה';
+function refreshCatSelect(){
+  const sel = document.getElementById('catSelect');
+  const opts = state.categories.filter(c => c.type === selectedType);
+  const optionsHtml = opts.map(c => `<option value="${c.category}">${c.category}</option>`).join('');
+  sel.innerHTML = (optionsHtml || '') + `<option value="${NEW_CAT_VALUE}">+ קטגוריה חדשה…</option>`;
+  document.getElementById('newCatField').style.display = 'none';
+  document.getElementById('newCatInput').value = '';
+}
+document.getElementById('catSelect').onchange = () => {
+  const isNew = document.getElementById('catSelect').value === NEW_CAT_VALUE;
+  document.getElementById('newCatField').style.display = isNew ? 'block' : 'none';
+};
+document.querySelectorAll('#typePick button').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('#typePick button').forEach(b=>b.classList.remove('sel'));
+    btn.classList.add('sel');
+    selectedType = btn.dataset.type;
+    refreshCatSelect();
+  };
+});
+document.getElementById('addBtn').onclick = () => {
+  document.getElementById('dateInput').value = new Date().toISOString().slice(0,10);
+  document.getElementById('amountInput').value = '';
+  document.getElementById('noteInput').value = '';
+  document.querySelectorAll('#typePick button').forEach(b=>b.classList.remove('sel'));
+  const defBtn = document.querySelector('#typePick button[data-type="משתנה"]');
+  defBtn.classList.add('sel'); selectedType = 'משתנה';
+  refreshCatSelect();
+  document.getElementById('addOverlay').classList.add('open');
+};
+document.getElementById('cancelAdd').onclick = () => document.getElementById('addOverlay').classList.remove('open');
+
+document.getElementById('saveAdd').onclick = async () => {
+  const amount = parseFloat(document.getElementById('amountInput').value);
+  const date = document.getElementById('dateInput').value;
+  const note = document.getElementById('noteInput').value;
+  const isNewCat = document.getElementById('catSelect').value === NEW_CAT_VALUE;
+  const category = isNewCat ? document.getElementById('newCatInput').value.trim() : document.getElementById('catSelect').value;
+
+  if(!amount || amount <= 0){ showToast('נא להזין סכום'); return; }
+  if(!category){ showToast(isNewCat ? 'נא להזין שם לקטגוריה' : 'נא לבחור קטגוריה'); return; }
+
+  const saveBtn = document.getElementById('saveAdd');
+  saveBtn.textContent = 'שומר…'; saveBtn.disabled = true;
+  try{
+    if(isNewCat){
+      await fetch(state.webAppUrl, {
+        method:'POST',
+        body: JSON.stringify({ action:'addCategory', type:selectedType, category })
+      });
+      state.categories.push({ type:selectedType, category });
+    }
+    await fetch(state.webAppUrl, {
+      method:'POST',
+      body: JSON.stringify({date, type:selectedType, category, amount, note})
+    });
+    document.getElementById('addOverlay').classList.remove('open');
+    showToast('נשמר בהצלחה');
+    await loadData();
+  }catch(err){
+    showToast('שגיאה בשמירה, נסו שוב');
+  }
+  saveBtn.textContent = 'שמור'; saveBtn.disabled = false;
+};
+
+async function deleteTx(row){
+  if(!confirm('למחוק תנועה זו?')) return;
+  try{
+    await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({action:'delete', row}) });
+    showToast('נמחק');
+    await loadData();
+  }catch(err){ showToast('שגיאה במחיקה'); }
+}
+
+// ---------- Rendering ----------
+function computePeriod(type, key){
+  let txs;
+  if(type === 'day') txs = state.transactions.filter(t => t.date === key);
+  else if(type === 'year') txs = state.transactions.filter(t => t.date && t.date.slice(0,4) === key);
+  else txs = state.transactions.filter(t => t.date && t.date.slice(0,7) === key);
+
+  const sums = {'הכנסה':0,'קבועה':0,'משתנה':0,'הלוואה':0,'חיסכון':0};
+  txs.forEach(t => { sums[t.type] = (sums[t.type]||0) + t.amount; });
+  const expenses = EXPENSE_TYPES.reduce((s,t)=>s+(sums[t]||0),0);
+  const outflow = expenses + (sums['חיסכון']||0);
+  const balance = (sums['הכנסה']||0) - outflow;
+  return { txs, sums, expenses, outflow, balance };
+}
+
+// trend series for the "summary" card, depends on periodType
+function trendSeries(type, offset){
+  if(type === 'day'){
+    const keys = []; for(let i=6;i>=0;i--) keys.push(dayKeyFromOffset(offset - i));
+    const labels = keys.map(k => { const [,,dd] = k.split('-'); return dd + '/' + k.split('-')[1]; });
+    return { keys, labels, unit:'7 ימים אחרונים' };
+  }
+  if(type === 'year'){
+    const y = yearKeyFromOffset(offset);
+    const keys = MONTH_NAMES.map((_,i) => y + '-' + String(i+1).padStart(2,'0'));
+    return { keys, labels: MONTH_SHORT, unit:'לפי חודש, ' + y };
+  }
+  const keys = []; for(let i=5;i>=0;i--) keys.push(monthKeyFromOffset(offset - i));
+  const labels = keys.map(k => MONTH_SHORT[Number(k.split('-')[1])-1]);
+  return { keys, labels, unit:'6 חודשים אחרונים' };
+}
+
+function balanceLabelFor(type){
+  if(type==='day') return 'יתרה פנויה ליום';
+  if(type==='year') return 'יתרה פנויה לשנה';
+  return 'יתרה פנויה לחודש';
+}
+function pctLabelFor(type){
+  return type==='day' ? 'מההכנסה יצא היום' : 'מההכנסה יצא';
+}
+function emptyListMsg(type){
+  if(type==='day') return 'אין תנועות ביום זה';
+  if(type==='year') return 'אין תנועות בשנה זו';
+  return 'אין תנועות בחודש זה';
+}
+function emptyCatMsg(type){
+  if(type==='day') return 'אין הוצאות ביום זה עדיין';
+  if(type==='year') return 'אין הוצאות בשנה זו עדיין';
+  return 'אין הוצאות בחודש זה עדיין';
+}
+
+function render(){
+  const type = state.periodType;
+  const key = periodKey(type, state.offsets[type]);
+  document.getElementById('monthLabel').textContent = periodLabel(type, key);
+  document.querySelectorAll('#periodTabs button').forEach(b => b.classList.toggle('active', b.dataset.period === type));
+
+  const m = computePeriod(type, key);
+  const income = m.sums['הכנסה'] || 0;
+  const pct = income > 0 ? Math.min(100, Math.round((m.outflow/income)*100)) : 0;
+
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="hero">
+      <div class="ring-wrap">
+        <svg width="110" height="110" viewBox="0 0 110 110">
+          <circle cx="55" cy="55" r="46" fill="none" stroke="#22344c" stroke-width="10"/>
+          <circle cx="55" cy="55" r="46" fill="none" stroke="${pct>=90?'var(--expense)':'var(--income)'}" stroke-width="10"
+            stroke-linecap="round" stroke-dasharray="${2*Math.PI*46}" stroke-dashoffset="${2*Math.PI*46*(1-pct/100)}"/>
+        </svg>
+        <div class="ring-center"><div class="pct">${pct}%</div><div class="pct-label">${pctLabelFor(type)}</div></div>
+      </div>
+      <div class="hero-info">
+        <div class="balance-label">${balanceLabelFor(type)}</div>
+        <div class="balance ${m.balance<0?'neg':'pos'} mono">${fmt(m.balance)}</div>
+        <div class="sub">הכנסות ${fmt(income)} · יציאות ${fmt(m.outflow)}</div>
+      </div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-card income"><div class="icon">↙</div><div class="val mono">${fmt(income)}</div><div class="lab">הכנסות</div></div>
+      <div class="stat-card expense"><div class="icon">↗</div><div class="val mono">${fmt(m.expenses)}</div><div class="lab">הוצאות</div></div>
+      <div class="stat-card saving"><div class="icon">●</div><div class="val mono">${fmt(m.sums['חיסכון']||0)}</div><div class="lab">חיסכון</div></div>
+    </div>
+
+    <div class="tabs">
+      <button id="tabSummary" class="${state.activeTab==='summary'?'active':''}">ניתוח</button>
+      <button id="tabList" class="${state.activeTab==='list'?'active':''}">תנועות (${m.txs.length})</button>
+    </div>
+
+    <div id="tabContent"></div>
+  `;
+
+  document.getElementById('tabSummary').onclick = () => { state.activeTab='summary'; render(); };
+  document.getElementById('tabList').onclick = () => { state.activeTab='list'; render(); };
+
+  if(state.activeTab === 'summary') renderSummary(type, key, m);
+  else renderList(type, m.txs);
+}
+
+function renderSummary(type, key, m){
+  const content = document.getElementById('tabContent');
+  const trend = trendSeries(type, state.offsets[type]);
+  content.innerHTML = `
+    <div class="card">
+      <h2>פילוח הוצאות לפי קטגוריה <span class="tag">${periodLabel(type, key)}</span></h2>
+      <div class="chart-wrap small"><canvas id="pieChart"></canvas></div>
+      <ul class="cat-list" id="catList"></ul>
+    </div>
+    <div class="card">
+      <h2>הכנסות מול הוצאות <span class="tag">${trend.unit}</span></h2>
+      <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+    </div>
+  `;
+
+  // category breakdown (expenses only)
+  const catTotals = {};
+  m.txs.filter(t => EXPENSE_TYPES.includes(t.type)).forEach(t => {
+    catTotals[t.category] = (catTotals[t.category]||0) + t.amount;
+  });
+  const sortedCats = Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
+  const catList = document.getElementById('catList');
+  if(sortedCats.length === 0){
+    catList.innerHTML = `<div class="empty">${emptyCatMsg(type)}</div>`;
+  } else {
+    catList.innerHTML = sortedCats.map(([cat,amt],i) => `
+      <li><span class="swatch" style="background:${CAT_PALETTE[i % CAT_PALETTE.length]}"></span>
+      <span class="name">${cat}</span><span class="amt mono">${fmt(amt)}</span></li>
+    `).join('');
+  }
+
+  if(state.charts.pie) state.charts.pie.destroy();
+  const pieCtx = document.getElementById('pieChart');
+  if(sortedCats.length){
+    state.charts.pie = new Chart(pieCtx, {
+      type:'doughnut',
+      data:{
+        labels: sortedCats.map(c=>c[0]),
+        datasets:[{ data: sortedCats.map(c=>c[1]), backgroundColor: sortedCats.map((_,i)=>CAT_PALETTE[i%CAT_PALETTE.length]), borderColor:'#121F30', borderWidth:2 }]
+      },
+      options:{ plugins:{ legend:{ display:false } }, cutout:'62%', maintainAspectRatio:false }
+    });
+  }
+
+  // trend chart (day: last 7 days · month: last 6 months · year: 12 months of the year)
+  const incomeData = [], expenseData = [];
+  trend.keys.forEach(k => {
+    const subType = type === 'day' ? 'day' : (type === 'year' ? 'month' : 'month');
+    const mm = computePeriod(subType, k);
+    incomeData.push(mm.sums['הכנסה']||0);
+    expenseData.push(mm.outflow);
+  });
+  if(state.charts.trend) state.charts.trend.destroy();
+  state.charts.trend = new Chart(document.getElementById('trendChart'), {
+    type:'bar',
+    data:{
+      labels: trend.labels,
+      datasets:[
+        { label:'הכנסות', data: incomeData, backgroundColor:'#4FD1A5', borderRadius:5 },
+        { label:'יציאות', data: expenseData, backgroundColor:'#FF6F6B', borderRadius:5 }
+      ]
+    },
+    options:{
+      maintainAspectRatio:false,
+      plugins:{ legend:{ labels:{ color:'#84A0BC', font:{ family:'Heebo' } } } },
+      scales:{
+        x:{ ticks:{ color:'#84A0BC', font:{ family:'Heebo' } }, grid:{ display:false } },
+        y:{ ticks:{ color:'#84A0BC' }, grid:{ color:'#22344c' } }
+      }
+    }
+  });
+}
+
+function renderList(type, txs){
+  const content = document.getElementById('tabContent');
+  if(txs.length === 0){
+    content.innerHTML = `<div class="card"><div class="empty">${emptyListMsg(type)}</div></div>`;
+    return;
+  }
+  const sorted = [...txs].sort((a,b)=> b.date.localeCompare(a.date));
+  content.innerHTML = `<div class="card">${sorted.map(t => `
+    <div class="tx-item">
+      <span class="type-dot" style="background:${TYPE_COLORS[t.type]||'#888'}"></span>
+      <div class="info">
+        <div class="cat">${t.category}</div>
+        <div class="meta">${t.date}${t.note ? ' · ' + t.note : ''}</div>
+      </div>
+      <div class="amt ${t.type==='הכנסה'?'income':'expense'} mono">${t.type==='הכנסה'?'+':'-'}${fmt(t.amount)}</div>
+      <button class="del" onclick="deleteTx(${t.row})">✕</button>
+    </div>
+  `).join('')}</div>`;
+}
+
+loadData();
+</script>
+</body>
+</html>
