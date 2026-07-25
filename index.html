@@ -1536,7 +1536,7 @@ function render(){
       <div class="hero-info">
         <div class="balance-label">${balanceLabelFor(type)}</div>
         <div class="balance ${m.balance<0?'neg':'pos'} mono">${fmt(m.balance)}</div>
-        <div class="sub">הכנסות ${fmt(income)} · יציאות ${fmt(m.outflow)}</div>
+        <div class="sub">הכנסות ${fmt(income)} · הוצאות ${fmt(m.outflow)}</div>
       </div>
     </div>
 
@@ -1720,7 +1720,7 @@ function renderSummary(type, key, m){
       labels: trend.labels,
       datasets:[
         { label:'הכנסות', data: incomeData, backgroundColor:'#4FD1A5', borderRadius:5 },
-        { label:'יציאות', data: expenseData, backgroundColor:'#FF6F6B', borderRadius:5 }
+        { label:'הוצאות', data: expenseData, backgroundColor:'#FF6F6B', borderRadius:5 }
       ]
     },
     options:{
