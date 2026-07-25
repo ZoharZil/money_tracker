@@ -150,6 +150,29 @@
   .cat-list .name{flex:1; color:var(--text);}
   .cat-list .amt{color:var(--text-muted);}
 
+  .budget-row{margin-bottom:14px;}
+  .budget-row:last-child{margin-bottom:0;}
+  .budget-row .top-line{display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:6px;}
+  .budget-row .top-line .name{color:var(--text);}
+  .budget-row .top-line .nums{color:var(--text-muted);}
+  .budget-row .top-line .nums.over{color:var(--expense); font-weight:700;}
+  .budget-bar{height:8px; border-radius:5px; background:var(--surface-2); overflow:hidden;}
+  .budget-bar-fill{height:100%; border-radius:5px; transition:width .3s;}
+  .overage-banner{
+    display:flex; align-items:center; gap:8px; background:rgba(255,111,107,0.12); border:1px solid rgba(255,111,107,0.35);
+    color:var(--expense); border-radius:12px; padding:10px 14px; font-size:12.5px; margin-bottom:14px;
+  }
+  .budget-field-item{
+    display:flex; align-items:center; gap:10px; margin-bottom:12px;
+  }
+  .budget-field-item .bname{flex:1; font-size:13.5px;}
+  .budget-field-item input{
+    width:110px; background:var(--surface-2); border:1px solid var(--line); color:var(--text);
+    border-radius:10px; padding:9px 10px; font-family:inherit; font-size:13.5px; text-align:center;
+  }
+  .budget-group-title{font-size:11.5px; color:var(--text-muted); margin:14px 0 8px; text-transform:uppercase; letter-spacing:.4px;}
+  .budget-group-title:first-child{margin-top:0;}
+
   .tabs{display:flex; gap:8px; margin-bottom:14px;}
   .tabs button{
     flex:1; padding:10px; border-radius:12px; border:1px solid var(--line);
@@ -229,7 +252,10 @@
 
 <header class="top">
   <div class="brand"><span class="dot"></span><h1>מעקב פיננסי</h1></div>
-  <button class="settings-btn" id="settingsBtn">⚙</button>
+  <div style="display:flex; gap:8px;">
+    <button class="settings-btn" id="budgetBtn" title="ניהול תקציבים">🎯</button>
+    <button class="settings-btn" id="settingsBtn">⚙</button>
+  </div>
 </header>
 
 <div class="period-tabs" id="periodTabs">
@@ -308,6 +334,20 @@
   </div>
 </div>
 
+<!-- Budgets sheet -->
+<div class="sheet-overlay" id="budgetOverlay">
+  <div class="sheet">
+    <div class="handle"></div>
+    <h3>ניהול תקציבים חודשיים</h3>
+    <div style="font-size:12px; color:var(--text-muted); margin-bottom:14px;">הגדירו סכום מקסימלי לחודש לכל קטגוריה. השאירו ריק (או 0) כדי לבטל תקציב לקטגוריה.</div>
+    <div id="budgetFields"></div>
+    <div class="actions">
+      <button class="btn ghost" id="cancelBudget">ביטול</button>
+      <button class="btn primary" id="saveBudget">שמור תקציבים</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- Date/Month/Year picker sheet -->
@@ -336,6 +376,7 @@ let state = {
   webAppUrl: localStorage.getItem('mf_webapp_url') || '',
   transactions: [],
   categories: [],
+  budgets: [],
   periodType: 'month', // 'day' | 'month' | 'year'
   offsets: { day: 0, month: 0, year: 0 },
   activeTab: 'summary',
@@ -402,6 +443,71 @@ document.getElementById('saveSettings').onclick = () => {
   loadData();
 };
 
+// ---------- Budgets ----------
+const BUDGET_TYPES = ['קבועה','משתנה','הלוואה'];
+const BUDGET_GROUP_LABEL = {'קבועה':'הוצאות קבועות','משתנה':'הוצאות משתנות','הלוואה':'הלוואות'};
+document.getElementById('budgetBtn').onclick = () => {
+  if(!state.webAppUrl){ showToast('חברו קודם לגיליון דרך ⚙'); return; }
+  const field = document.getElementById('budgetFields');
+  const budgetMap = {};
+  state.budgets.forEach(b => { budgetMap[b.type + '|' + b.category] = b.budget; });
+
+  let html = '';
+  BUDGET_TYPES.forEach(type => {
+    const cats = state.categories.filter(c => c.type === type);
+    if(!cats.length) return;
+    html += `<div class="budget-group-title">${BUDGET_GROUP_LABEL[type]}</div>`;
+    cats.forEach(c => {
+      const key = type + '|' + c.category;
+      const val = budgetMap[key] || '';
+      html += `<div class="budget-field-item">
+        <div class="bname">${c.category}</div>
+        <input type="number" inputmode="decimal" placeholder="0" value="${val}" data-type="${type}" data-category="${c.category.replace(/"/g,'&quot;')}">
+      </div>`;
+    });
+  });
+  field.innerHTML = html || '<div class="empty">אין עדיין קטגוריות הוצאה</div>';
+  document.getElementById('budgetOverlay').classList.add('open');
+};
+document.getElementById('cancelBudget').onclick = () => {
+  document.getElementById('budgetOverlay').classList.remove('open');
+};
+document.getElementById('saveBudget').onclick = async () => {
+  const inputs = document.querySelectorAll('#budgetFields input');
+  const budgetMap = {};
+  state.budgets.forEach(b => { budgetMap[b.type + '|' + b.category] = b.budget; });
+
+  const changes = [];
+  inputs.forEach(inp => {
+    const type = inp.dataset.type;
+    const category = inp.dataset.category;
+    const newVal = parseFloat(inp.value) || 0;
+    const oldVal = budgetMap[type + '|' + category] || 0;
+    if(newVal !== oldVal){
+      changes.push({ type, category, budget: newVal });
+    }
+  });
+
+  if(changes.length === 0){
+    document.getElementById('budgetOverlay').classList.remove('open');
+    return;
+  }
+
+  const saveBtn = document.getElementById('saveBudget');
+  saveBtn.textContent = 'שומר…'; saveBtn.disabled = true;
+  try{
+    for(const change of changes){
+      await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'setBudget', ...change }) });
+    }
+    document.getElementById('budgetOverlay').classList.remove('open');
+    showToast('התקציבים נשמרו');
+    await loadData();
+  }catch(err){
+    showToast('שגיאה בשמירת התקציבים');
+  }
+  saveBtn.textContent = 'שמור תקציבים'; saveBtn.disabled = false;
+};
+
 // ---------- Data fetching ----------
 async function loadData(){
   const app = document.getElementById('app');
@@ -422,6 +528,7 @@ async function loadData(){
     if(!data.ok) throw new Error(data.error || 'שגיאה לא ידועה');
     state.transactions = data.transactions || [];
     state.categories = data.categories || [];
+    state.budgets = data.budgets || [];
   }catch(err){
     console.error('Sheet connection error:', err);
     app.innerHTML = `<div class="no-config">
@@ -645,7 +752,7 @@ function render(){
       <div class="hero-info">
         <div class="balance-label">${balanceLabelFor(type)}</div>
         <div class="balance ${m.balance<0?'neg':'pos'} mono">${fmt(m.balance)}</div>
-        <div class="sub">הכנסות ${fmt(income)} · הוצאות ${fmt(m.outflow)}</div>
+        <div class="sub">הכנסות ${fmt(income)} · יציאות ${fmt(m.outflow)}</div>
       </div>
     </div>
 
@@ -673,7 +780,48 @@ function render(){
 function renderSummary(type, key, m){
   const content = document.getElementById('tabContent');
   const trend = trendSeries(type, state.offsets[type]);
-  content.innerHTML = `
+
+  // category breakdown (expenses only) - computed early so the budget card can use it
+  const catTotals = {};
+  m.txs.filter(t => EXPENSE_TYPES.includes(t.type)).forEach(t => {
+    catTotals[t.category] = (catTotals[t.category]||0) + t.amount;
+  });
+  const sortedCats = Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
+
+  // budget progress (only meaningful for the monthly view)
+  let budgetCardHtml = '';
+  if(type === 'month'){
+    const relevantBudgets = state.budgets.filter(b => BUDGET_TYPES.includes(b.type) && b.budget > 0);
+    const income = m.sums['הכנסה'] || 0;
+    const overCategories = relevantBudgets.filter(b => (catTotals[b.category]||0) > b.budget);
+    let banner = '';
+    if(income > 0 && m.outflow > income){
+      banner = `<div class="overage-banner">⚠️ ההוצאות החודש (${fmt(m.outflow)}) עברו את ההכנסות (${fmt(income)})</div>`;
+    } else if(overCategories.length > 0){
+      banner = `<div class="overage-banner">⚠️ ${overCategories.length} קטגוריות חרגו מהתקציב שהוגדר להן</div>`;
+    }
+    if(relevantBudgets.length > 0){
+      const rows = relevantBudgets.map(b => {
+        const spent = catTotals[b.category] || 0;
+        const pct = Math.min(100, Math.round((spent / b.budget) * 100));
+        const over = spent > b.budget;
+        const color = over ? 'var(--expense)' : (pct >= 70 ? 'var(--loan)' : 'var(--income)');
+        return `<div class="budget-row">
+          <div class="top-line"><span class="name">${b.category}</span><span class="nums ${over?'over':''}">${fmt(spent)} / ${fmt(b.budget)}</span></div>
+          <div class="budget-bar"><div class="budget-bar-fill" style="width:${pct}%; background:${color};"></div></div>
+        </div>`;
+      }).join('');
+      budgetCardHtml = `<div class="card">
+        <h2>תקציב חודשי <span class="tag">${periodLabel(type, key)}</span></h2>
+        ${banner}
+        ${rows}
+      </div>`;
+    } else if(banner){
+      budgetCardHtml = `<div class="card">${banner}<div class="empty">עדיין לא הוגדרו תקציבים לקטגוריות. אפשר להגדיר דרך כפתור 🎯 למעלה.</div></div>`;
+    }
+  }
+
+  content.innerHTML = budgetCardHtml + `
     <div class="card">
       <h2>פילוח הוצאות לפי קטגוריה <span class="tag">${periodLabel(type, key)}</span></h2>
       <div class="chart-wrap small"><canvas id="pieChart"></canvas></div>
@@ -685,12 +833,6 @@ function renderSummary(type, key, m){
     </div>
   `;
 
-  // category breakdown (expenses only)
-  const catTotals = {};
-  m.txs.filter(t => EXPENSE_TYPES.includes(t.type)).forEach(t => {
-    catTotals[t.category] = (catTotals[t.category]||0) + t.amount;
-  });
-  const sortedCats = Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
   const catList = document.getElementById('catList');
   if(sortedCats.length === 0){
     catList.innerHTML = `<div class="empty">${emptyCatMsg(type)}</div>`;
@@ -735,7 +877,7 @@ function renderSummary(type, key, m){
       labels: trend.labels,
       datasets:[
         { label:'הכנסות', data: incomeData, backgroundColor:'#4FD1A5', borderRadius:5 },
-        { label:'הוצאות', data: expenseData, backgroundColor:'#FF6F6B', borderRadius:5 }
+        { label:'יציאות', data: expenseData, backgroundColor:'#FF6F6B', borderRadius:5 }
       ]
     },
     options:{
