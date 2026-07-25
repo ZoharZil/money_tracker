@@ -40,39 +40,62 @@
     --radius:18px;
     --radius-sm:12px;
     --shadow: 0 10px 30px -12px rgba(0,0,0,0.55);
+    --blob1:#16283f;
+    --blob2:#142338;
+  }
+  body.light-mode{
+    --bg:#EEF2F8;
+    --surface:#FFFFFF;
+    --surface-2:#F1F4F9;
+    --surface-3:#E4EAF3;
+    --line:#DCE3EE;
+    --text:#152238;
+    --text-muted:#6B7A90;
+    --income:#12946C;
+    --expense:#D8443C;
+    --loan:#B9820E;
+    --saving:#4A63D6;
+    --accent:#12946C;
+    --danger:#D8443C;
+    --shadow: 0 10px 24px -14px rgba(30,50,80,0.25);
+    --blob1:#dfe8f7;
+    --blob2:#e7edf9;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{margin:0;padding:0;}
   body{
     background:
-      radial-gradient(1200px 600px at 100% -10%, #16283f 0%, transparent 60%),
-      radial-gradient(900px 500px at -10% 0%, #142338 0%, transparent 55%),
+      radial-gradient(1200px 600px at 100% -10%, var(--blob1) 0%, transparent 60%),
+      radial-gradient(900px 500px at -10% 0%, var(--blob2) 0%, transparent 55%),
       var(--bg);
     color:var(--text);
     font-family:'Heebo', system-ui, sans-serif;
     min-height:100vh;
     padding-bottom:100px;
+    transition: background-color .2s, color .2s;
   }
   .mono{font-family:'Roboto Mono', monospace; font-variant-numeric: tabular-nums;}
   a{color:inherit;}
 
   header.top{
-    padding:22px 18px 8px;
+    padding:22px 14px 8px;
     display:flex; align-items:center; justify-content:space-between;
+    gap:8px;
   }
   header.top .brand{
-    display:flex; align-items:center; gap:10px;
+    display:flex; align-items:center; gap:8px; min-width:0;
   }
   header.top .brand .dot{
     width:10px;height:10px;border-radius:50%;
     background:var(--income);
     box-shadow:0 0 12px var(--income);
+    flex-shrink:0;
   }
-  header.top h1{font-size:17px; font-weight:700; margin:0; letter-spacing:.2px;}
+  header.top h1{font-size:15px; font-weight:700; margin:0; letter-spacing:.2px; white-space:nowrap;}
   header.top .settings-btn{
     background:var(--surface); border:1px solid var(--line); color:var(--text-muted);
-    width:38px;height:38px;border-radius:12px; display:flex;align-items:center;justify-content:center;
-    cursor:pointer;
+    width:32px;height:32px;border-radius:10px; display:flex;align-items:center;justify-content:center;
+    cursor:pointer; font-size:13px; flex-shrink:0;
   }
 
   .period-tabs{
@@ -97,6 +120,20 @@
     cursor:pointer; border-bottom:1px dashed #33507a; padding-bottom:2px; user-select:none;}
 
   main{padding:0 16px; max-width:520px; margin:0 auto;}
+  .app-footer{
+    max-width:520px; margin:18px auto 0; padding:0 16px;
+    text-align:right; font-size:11px; color:var(--text-muted); opacity:.7;
+  }
+
+  @media (min-width:700px){
+    main{max-width:640px;}
+    .app-footer{max-width:640px;}
+    .sheet{max-width:640px; padding:26px 28px 32px;}
+    .sheet h3{font-size:18px;}
+    .field label, .field .field-label{font-size:13px;}
+    .field input, .field select, .field textarea{font-size:15.5px; padding:12px 14px;}
+    .btn{font-size:15.5px; padding:14px;}
+  }
 
   /* Hero cash-flow ring */
   .hero{
@@ -172,6 +209,60 @@
   }
   .budget-group-title{font-size:11.5px; color:var(--text-muted); margin:14px 0 8px; text-transform:uppercase; letter-spacing:.4px;}
   .budget-group-title:first-child{margin-top:0;}
+
+  .search-bar{margin-bottom:12px;}
+  .search-bar input{
+    width:100%; background:var(--surface); border:1px solid var(--line); color:var(--text);
+    border-radius:12px; padding:11px 14px; font-family:inherit; font-size:14px;
+  }
+  .filter-chips{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;}
+  .filter-chips button{
+    border:1px solid var(--line); background:var(--surface); color:var(--text-muted);
+    border-radius:20px; padding:6px 12px; font-family:inherit; font-size:11.5px; cursor:pointer;
+  }
+  .filter-chips button.active{background:var(--surface-3); color:var(--text); border-color:#33507a;}
+
+  .compare-strip{
+    display:flex; gap:10px; margin-bottom:14px;
+  }
+  .compare-card{
+    flex:1; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-sm);
+    padding:11px 12px;
+  }
+  .compare-card .lab{font-size:10.5px; color:var(--text-muted); margin-bottom:3px;}
+  .compare-card .val{font-size:14px; font-weight:700;}
+  .compare-card .val.up{color:var(--expense);}
+  .compare-card .val.down{color:var(--income);}
+  .compare-card .val.flat{color:var(--text-muted);}
+
+  .recurring-banner{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    background:rgba(124,158,255,0.12); border:1px solid rgba(124,158,255,0.35);
+    border-radius:12px; padding:12px 14px; margin-bottom:14px; font-size:12.5px; color:var(--saving);
+  }
+  .recurring-banner button{
+    background:var(--saving); color:#0b1420; border:none; border-radius:20px; padding:7px 14px;
+    font-family:inherit; font-size:12px; font-weight:700; cursor:pointer; flex-shrink:0;
+  }
+  .recurring-item{
+    display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line);
+  }
+  .recurring-item:last-child{border-bottom:none;}
+  .recurring-item .info{flex:1;}
+  .recurring-item .cat{font-size:13.5px; font-weight:500;}
+  .recurring-item .meta{font-size:11px; color:var(--text-muted); margin-top:2px;}
+  .recurring-item .amt{font-size:13.5px; font-weight:700; color:var(--text);}
+  .recurring-item .del{background:none; border:none; color:var(--text-muted); font-size:16px; cursor:pointer; padding:4px;}
+
+  .goal-card .headline{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px;}
+  .goal-card .headline .cur{font-size:20px; font-weight:700; color:var(--saving);}
+  .goal-card .headline .tgt{font-size:12px; color:var(--text-muted);}
+  .goal-card .sub{font-size:11.5px; color:var(--text-muted); margin-top:8px;}
+
+  .export-btn{
+    background:var(--surface-2); border:1px solid var(--line); color:var(--text-muted);
+    border-radius:20px; padding:6px 14px; font-family:inherit; font-size:11.5px; cursor:pointer;
+  }
 
   .tabs{display:flex; gap:8px; margin-bottom:14px;}
   .tabs button{
@@ -252,7 +343,10 @@
 
 <header class="top">
   <div class="brand"><span class="dot"></span><h1>מעקב פיננסי</h1></div>
-  <div style="display:flex; gap:8px;">
+  <div style="display:flex; gap:6px;">
+    <button class="settings-btn" id="themeBtn" title="החלפת מצב תצוגה">🌙</button>
+    <button class="settings-btn" id="goalBtn" title="יעד חיסכון">🏆</button>
+    <button class="settings-btn" id="recurringBtn" title="תנועות קבועות">🔁</button>
     <button class="settings-btn" id="budgetBtn" title="ניהול תקציבים">🎯</button>
     <button class="settings-btn" id="settingsBtn">⚙</button>
   </div>
@@ -274,13 +368,15 @@
   <div class="loading" id="loadingState">טוען נתונים…</div>
 </main>
 
+<div class="app-footer">© Zohar Zilcha</div>
+
 <button class="fab" id="addBtn" style="display:none;">＋ הוסף תנועה</button>
 
 <!-- Add transaction sheet -->
 <div class="sheet-overlay" id="addOverlay">
   <div class="sheet">
     <div class="handle"></div>
-    <h3>תנועה חדשה</h3>
+    <h3 id="addSheetTitle">תנועה חדשה</h3>
     <div class="field">
       <div class="field-label">סוג</div>
       <div class="type-pick" id="typePick">
@@ -348,6 +444,62 @@
   </div>
 </div>
 
+<!-- Recurring transactions sheet -->
+<div class="sheet-overlay" id="recurringOverlay">
+  <div class="sheet">
+    <div class="handle"></div>
+    <h3>תנועות קבועות</h3>
+    <div style="font-size:12px; color:var(--text-muted); margin-bottom:14px;">תבניות לתנועות שחוזרות כל חודש (כמו שכר דירה). כשמתחיל חודש חדש, האפליקציה תציע להוסיף אותן בלחיצה אחת.</div>
+    <div id="recurringList"></div>
+    <div class="budget-group-title">הוספת תבנית חדשה</div>
+    <div class="field">
+      <div class="field-label">סוג</div>
+      <div class="type-pick" id="recTypePick">
+        <button data-type="קבועה">קבועה</button>
+        <button data-type="משתנה">משתנה</button>
+        <button data-type="הלוואה">הלוואה</button>
+        <button data-type="חיסכון">חיסכון</button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="recCatSelect">קטגוריה</label>
+      <select id="recCatSelect"></select>
+    </div>
+    <div class="field">
+      <label for="recAmountInput">סכום (₪)</label>
+      <input type="number" id="recAmountInput" inputmode="decimal" placeholder="0">
+    </div>
+    <div class="field">
+      <label for="recNoteInput">הערה (אופציונלי)</label>
+      <input type="text" id="recNoteInput" placeholder="לדוגמה: שכירות דירה">
+    </div>
+    <div class="actions">
+      <button class="btn ghost" id="cancelRecurring">סגור</button>
+      <button class="btn primary" id="addRecurringBtn">הוסף תבנית</button>
+    </div>
+  </div>
+</div>
+
+<!-- Savings goal sheet -->
+<div class="sheet-overlay" id="goalOverlay">
+  <div class="sheet">
+    <div class="handle"></div>
+    <h3>יעד חיסכון</h3>
+    <div class="field">
+      <label for="goalAmountInput">סכום היעד (₪)</label>
+      <input type="number" id="goalAmountInput" inputmode="decimal" placeholder="לדוגמה: 50000">
+    </div>
+    <div class="field">
+      <label for="goalDateInput">תאריך יעד (אופציונלי)</label>
+      <input type="date" id="goalDateInput">
+    </div>
+    <div class="actions">
+      <button class="btn ghost" id="cancelGoal">ביטול</button>
+      <button class="btn primary" id="saveGoal">שמור יעד</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- Date/Month/Year picker sheet -->
@@ -364,6 +516,22 @@
 </div>
 
 <script>
+// ---------- Theme (dark default, unless the user chose light before) ----------
+(function initTheme(){
+  let saved = null;
+  try{ saved = localStorage.getItem('mf_theme'); }catch(e){}
+  if(saved === 'light'){
+    document.body.classList.add('light-mode');
+  }
+})();
+function applyThemeButtonIcon(){
+  const btn = document.getElementById('themeBtn');
+  if(!btn) return;
+  btn.textContent = document.body.classList.contains('light-mode') ? '☀️' : '🌙';
+}
+document.addEventListener('DOMContentLoaded', applyThemeButtonIcon);
+if(document.readyState !== 'loading') applyThemeButtonIcon();
+
 const EXPENSE_TYPES = ['קבועה','משתנה','הלוואה'];
 const TYPE_COLORS = {'הכנסה':'#4FD1A5','קבועה':'#FF6F6B','משתנה':'#F2985E','הלוואה':'#F2B84B','חיסכון':'#7C9EFF'};
 const CAT_PALETTE = ['#4FD1A5','#FF6F6B','#F2B84B','#7C9EFF','#B98CFF','#4FC3E8','#F2985E','#E888C0','#8CE87B','#E8D24F','#7BB0E8','#E86B8C'];
@@ -377,9 +545,14 @@ let state = {
   transactions: [],
   categories: [],
   budgets: [],
+  recurring: [],
+  settings: {},
   periodType: 'month', // 'day' | 'month' | 'year'
   offsets: { day: 0, month: 0, year: 0 },
   activeTab: 'summary',
+  editingRow: null, // null = adding a new transaction, row number = editing that one
+  listSearch: '',
+  listTypeFilter: new Set(['הכנסה','קבועה','משתנה','הלוואה','חיסכון']),
   charts: {}
 };
 
@@ -425,6 +598,14 @@ function showToast(msg){
   t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'), 2200);
 }
+
+// ---------- Theme toggle ----------
+document.getElementById('themeBtn').onclick = () => {
+  document.body.classList.toggle('light-mode');
+  const isLight = document.body.classList.contains('light-mode');
+  try{ localStorage.setItem('mf_theme', isLight ? 'light' : 'dark'); }catch(e){}
+  applyThemeButtonIcon();
+};
 
 // ---------- Settings ----------
 document.getElementById('settingsBtn').onclick = () => {
@@ -508,6 +689,133 @@ document.getElementById('saveBudget').onclick = async () => {
   saveBtn.textContent = 'שמור תקציבים'; saveBtn.disabled = false;
 };
 
+// ---------- Recurring transactions ----------
+let recSelectedType = 'קבועה';
+function refreshRecCatSelect(){
+  const sel = document.getElementById('recCatSelect');
+  const opts = state.categories.filter(c => c.type === recSelectedType);
+  sel.innerHTML = opts.map(c => `<option value="${c.category}">${c.category}</option>`).join('') || '<option value="">— אין קטגוריות —</option>';
+}
+document.querySelectorAll('#recTypePick button').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('#recTypePick button').forEach(b=>b.classList.remove('sel'));
+    btn.classList.add('sel');
+    recSelectedType = btn.dataset.type;
+    refreshRecCatSelect();
+  };
+});
+function renderRecurringList(){
+  const list = document.getElementById('recurringList');
+  if(!state.recurring.length){
+    list.innerHTML = '<div class="empty">עדיין אין תבניות. הוסיפו למטה.</div>';
+    return;
+  }
+  list.innerHTML = state.recurring.map(r => `
+    <div class="recurring-item">
+      <span class="type-dot" style="background:${TYPE_COLORS[r.type]||'#888'}"></span>
+      <div class="info">
+        <div class="cat">${r.category}</div>
+        <div class="meta">${r.type}${r.note ? ' · ' + r.note : ''}</div>
+      </div>
+      <div class="amt mono">${fmt(r.amount)}</div>
+      <button class="del" onclick="deleteRecurring(${r.row})">✕</button>
+    </div>
+  `).join('');
+}
+document.getElementById('recurringBtn').onclick = () => {
+  if(!state.webAppUrl){ showToast('חברו קודם לגיליון דרך ⚙'); return; }
+  renderRecurringList();
+  document.getElementById('recAmountInput').value = '';
+  document.getElementById('recNoteInput').value = '';
+  document.querySelectorAll('#recTypePick button').forEach(b=>b.classList.remove('sel'));
+  document.querySelector('#recTypePick button[data-type="קבועה"]').classList.add('sel');
+  recSelectedType = 'קבועה';
+  refreshRecCatSelect();
+  document.getElementById('recurringOverlay').classList.add('open');
+};
+document.getElementById('cancelRecurring').onclick = () => {
+  document.getElementById('recurringOverlay').classList.remove('open');
+};
+document.getElementById('addRecurringBtn').onclick = async () => {
+  const category = document.getElementById('recCatSelect').value;
+  const amount = parseFloat(document.getElementById('recAmountInput').value);
+  const note = document.getElementById('recNoteInput').value;
+  if(!category){ showToast('נא לבחור קטגוריה'); return; }
+  if(!amount || amount <= 0){ showToast('נא להזין סכום'); return; }
+  const btn = document.getElementById('addRecurringBtn');
+  btn.textContent = 'מוסיף…'; btn.disabled = true;
+  try{
+    await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'addRecurring', type:recSelectedType, category, amount, note }) });
+    const res = await fetch(state.webAppUrl);
+    const data = await res.json();
+    if(data.ok){ state.recurring = data.recurring || []; }
+    renderRecurringList();
+    document.getElementById('recAmountInput').value = '';
+    document.getElementById('recNoteInput').value = '';
+    showToast('התבנית נוספה');
+  }catch(err){
+    showToast('שגיאה בהוספת התבנית');
+  }
+  btn.textContent = 'הוסף תבנית'; btn.disabled = false;
+};
+async function deleteRecurring(row){
+  if(!confirm('למחוק תבנית זו?')) return;
+  try{
+    await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'deleteRecurring', row }) });
+    state.recurring = state.recurring.filter(r => r.row !== row);
+    renderRecurringList();
+    showToast('התבנית נמחקה');
+  }catch(err){ showToast('שגיאה במחיקה'); }
+}
+// adds all recurring templates not yet present as a transaction in the current real month
+async function addAllMissingRecurring(){
+  const currentMonthKey = monthKeyFromOffset(0);
+  const existing = new Set(
+    state.transactions.filter(t => t.date && t.date.slice(0,7) === currentMonthKey)
+      .map(t => t.type + '|' + t.category)
+  );
+  const missing = state.recurring.filter(r => !existing.has(r.type + '|' + r.category));
+  if(!missing.length) return;
+  showToast('מוסיף תנועות חוזרות…');
+  const today = new Date().toISOString().slice(0,10);
+  try{
+    for(const r of missing){
+      await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ date:today, type:r.type, category:r.category, amount:r.amount, note:r.note }) });
+    }
+    showToast('התנועות הקבועות נוספו');
+    await loadData();
+  }catch(err){
+    showToast('שגיאה בהוספת התנועות הקבועות');
+  }
+}
+
+// ---------- Savings goal ----------
+document.getElementById('goalBtn').onclick = () => {
+  if(!state.webAppUrl){ showToast('חברו קודם לגיליון דרך ⚙'); return; }
+  document.getElementById('goalAmountInput').value = state.settings.savings_goal_amount || '';
+  document.getElementById('goalDateInput').value = state.settings.savings_goal_date || '';
+  document.getElementById('goalOverlay').classList.add('open');
+};
+document.getElementById('cancelGoal').onclick = () => {
+  document.getElementById('goalOverlay').classList.remove('open');
+};
+document.getElementById('saveGoal').onclick = async () => {
+  const amount = parseFloat(document.getElementById('goalAmountInput').value) || 0;
+  const date = document.getElementById('goalDateInput').value || '';
+  const btn = document.getElementById('saveGoal');
+  btn.textContent = 'שומר…'; btn.disabled = true;
+  try{
+    await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'setSetting', key:'savings_goal_amount', value:amount }) });
+    await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'setSetting', key:'savings_goal_date', value:date }) });
+    document.getElementById('goalOverlay').classList.remove('open');
+    showToast('היעד נשמר');
+    await loadData();
+  }catch(err){
+    showToast('שגיאה בשמירת היעד');
+  }
+  btn.textContent = 'שמור יעד'; btn.disabled = false;
+};
+
 // ---------- Data fetching ----------
 async function loadData(){
   const app = document.getElementById('app');
@@ -529,6 +837,8 @@ async function loadData(){
     state.transactions = data.transactions || [];
     state.categories = data.categories || [];
     state.budgets = data.budgets || [];
+    state.recurring = data.recurring || [];
+    state.settings = data.settings || {};
   }catch(err){
     console.error('Sheet connection error:', err);
     app.innerHTML = `<div class="no-config">
@@ -624,6 +934,9 @@ document.querySelectorAll('#typePick button').forEach(btn => {
   };
 });
 document.getElementById('addBtn').onclick = () => {
+  state.editingRow = null;
+  document.getElementById('addSheetTitle').textContent = 'תנועה חדשה';
+  document.getElementById('saveAdd').textContent = 'שמור';
   document.getElementById('dateInput').value = new Date().toISOString().slice(0,10);
   document.getElementById('amountInput').value = '';
   document.getElementById('noteInput').value = '';
@@ -633,7 +946,29 @@ document.getElementById('addBtn').onclick = () => {
   refreshCatSelect();
   document.getElementById('addOverlay').classList.add('open');
 };
-document.getElementById('cancelAdd').onclick = () => document.getElementById('addOverlay').classList.remove('open');
+function openEditTx(row){
+  const tx = state.transactions.find(t => t.row === row);
+  if(!tx) return;
+  state.editingRow = row;
+  document.getElementById('addSheetTitle').textContent = 'עריכת תנועה';
+  document.getElementById('saveAdd').textContent = 'עדכן';
+  document.querySelectorAll('#typePick button').forEach(b=>b.classList.remove('sel'));
+  const typeBtn = document.querySelector(`#typePick button[data-type="${tx.type}"]`);
+  if(typeBtn) typeBtn.classList.add('sel');
+  selectedType = tx.type;
+  refreshCatSelect();
+  const sel = document.getElementById('catSelect');
+  if([...sel.options].some(o => o.value === tx.category)) sel.value = tx.category;
+  sel.dispatchEvent(new Event('change'));
+  document.getElementById('amountInput').value = tx.amount;
+  document.getElementById('dateInput').value = tx.date;
+  document.getElementById('noteInput').value = tx.note || '';
+  document.getElementById('addOverlay').classList.add('open');
+}
+document.getElementById('cancelAdd').onclick = () => {
+  state.editingRow = null;
+  document.getElementById('addOverlay').classList.remove('open');
+};
 
 document.getElementById('saveAdd').onclick = async () => {
   const amount = parseFloat(document.getElementById('amountInput').value);
@@ -646,6 +981,7 @@ document.getElementById('saveAdd').onclick = async () => {
   if(!category){ showToast(isNewCat ? 'נא להזין שם לקטגוריה' : 'נא לבחור קטגוריה'); return; }
 
   const saveBtn = document.getElementById('saveAdd');
+  const editing = state.editingRow;
   saveBtn.textContent = 'שומר…'; saveBtn.disabled = true;
   try{
     if(isNewCat){
@@ -655,17 +991,25 @@ document.getElementById('saveAdd').onclick = async () => {
       });
       state.categories.push({ type:selectedType, category });
     }
-    await fetch(state.webAppUrl, {
-      method:'POST',
-      body: JSON.stringify({date, type:selectedType, category, amount, note})
-    });
+    if(editing){
+      await fetch(state.webAppUrl, {
+        method:'POST',
+        body: JSON.stringify({ action:'edit', row:editing, date, type:selectedType, category, amount, note })
+      });
+    } else {
+      await fetch(state.webAppUrl, {
+        method:'POST',
+        body: JSON.stringify({date, type:selectedType, category, amount, note})
+      });
+    }
+    state.editingRow = null;
     document.getElementById('addOverlay').classList.remove('open');
-    showToast('נשמר בהצלחה');
+    showToast(editing ? 'עודכן בהצלחה' : 'נשמר בהצלחה');
     await loadData();
   }catch(err){
     showToast('שגיאה בשמירה, נסו שוב');
   }
-  saveBtn.textContent = 'שמור'; saveBtn.disabled = false;
+  saveBtn.textContent = editing ? 'עדכן' : 'שמור'; saveBtn.disabled = false;
 };
 
 async function deleteTx(row){
@@ -738,6 +1082,23 @@ function render(){
   const income = m.sums['הכנסה'] || 0;
   const pct = income > 0 ? Math.min(100, Math.round((m.outflow/income)*100)) : 0;
 
+  // recurring templates not yet added this real-world month
+  let recurringBannerHtml = '';
+  if(type === 'month' && state.offsets.month === 0 && state.recurring.length){
+    const currentMonthKey = monthKeyFromOffset(0);
+    const existing = new Set(
+      state.transactions.filter(t => t.date && t.date.slice(0,7) === currentMonthKey)
+        .map(t => t.type + '|' + t.category)
+    );
+    const missingCount = state.recurring.filter(r => !existing.has(r.type + '|' + r.category)).length;
+    if(missingCount > 0){
+      recurringBannerHtml = `<div class="recurring-banner">
+        <span>🔁 יש ${missingCount} תנועות קבועות שטרם נוספו החודש</span>
+        <button id="addMissingRecurringBtn">הוסף הכל</button>
+      </div>`;
+    }
+  }
+
   const app = document.getElementById('app');
   app.innerHTML = `
     <div class="hero">
@@ -756,6 +1117,8 @@ function render(){
       </div>
     </div>
 
+    ${recurringBannerHtml}
+
     <div class="stat-row">
       <div class="stat-card income"><div class="icon">↙</div><div class="val mono">${fmt(income)}</div><div class="lab">הכנסות</div></div>
       <div class="stat-card expense"><div class="icon">↗</div><div class="val mono">${fmt(m.expenses)}</div><div class="lab">הוצאות</div></div>
@@ -770,6 +1133,10 @@ function render(){
     <div id="tabContent"></div>
   `;
 
+  if(document.getElementById('addMissingRecurringBtn')){
+    document.getElementById('addMissingRecurringBtn').onclick = addAllMissingRecurring;
+  }
+
   document.getElementById('tabSummary').onclick = () => { state.activeTab='summary'; render(); };
   document.getElementById('tabList').onclick = () => { state.activeTab='list'; render(); };
 
@@ -780,6 +1147,7 @@ function render(){
 function renderSummary(type, key, m){
   const content = document.getElementById('tabContent');
   const trend = trendSeries(type, state.offsets[type]);
+  const income = m.sums['הכנסה'] || 0;
 
   // category breakdown (expenses only) - computed early so the budget card can use it
   const catTotals = {};
@@ -788,11 +1156,62 @@ function renderSummary(type, key, m){
   });
   const sortedCats = Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
 
+  // export / share row
+  const exportRowHtml = `<div style="display:flex; justify-content:flex-end; margin-bottom:12px;">
+    <button class="export-btn" onclick="shareReport('${type}','${key}')">📤 שיתוף דוח</button>
+  </div>`;
+
+  // savings goal (cumulative across all time, shown regardless of period)
+  let goalCardHtml = '';
+  const goalAmount = Number(state.settings.savings_goal_amount) || 0;
+  if(goalAmount > 0){
+    const goalDate = state.settings.savings_goal_date || '';
+    const totalSaved = state.transactions.filter(t => t.type === 'חיסכון').reduce((s,t)=>s+t.amount, 0);
+    const gPct = Math.min(100, Math.round((totalSaved / goalAmount) * 100));
+    const remaining = Math.max(0, goalAmount - totalSaved);
+    let dateSub = '';
+    if(goalDate){
+      const days = Math.ceil((new Date(goalDate) - new Date()) / 86400000);
+      dateSub = days >= 0 ? `<div class="sub">נותרו ${days} ימים עד ${goalDate}</div>` : `<div class="sub">תאריך היעד (${goalDate}) כבר חלף</div>`;
+    }
+    goalCardHtml = `<div class="card goal-card">
+      <h2>יעד חיסכון</h2>
+      <div class="headline"><span class="cur mono">${fmt(totalSaved)}</span><span class="tgt mono">מתוך ${fmt(goalAmount)}</span></div>
+      <div class="budget-bar"><div class="budget-bar-fill" style="width:${gPct}%; background:var(--saving);"></div></div>
+      <div class="sub">${gPct}% מהיעד · נותרו ${fmt(remaining)}</div>
+      ${dateSub}
+    </div>`;
+  }
+
+  // month-over-month comparison (only meaningful for the monthly view)
+  let compareStripHtml = '';
+  if(type === 'month'){
+    const prevKey = monthKeyFromOffset(state.offsets.month - 1);
+    const prevM = computePeriod('month', prevKey);
+    const prevIncome = prevM.sums['הכנסה'] || 0;
+    function pctChange(cur, prev){
+      if(prev === 0) return cur === 0 ? 0 : null;
+      return Math.round(((cur - prev) / prev) * 100);
+    }
+    function changeLabel(val, badWhenUp){
+      if(val === null) return { text:'אין נתונים קודמים', cls:'flat' };
+      if(val === 0) return { text:'ללא שינוי', cls:'flat' };
+      const arrow = val > 0 ? '↑' : '↓';
+      const isBad = badWhenUp ? val > 0 : val < 0;
+      return { text:`${arrow} ${Math.abs(val)}%`, cls: isBad ? 'up' : 'down' };
+    }
+    const incLbl = changeLabel(pctChange(income, prevIncome), false);
+    const expLbl = changeLabel(pctChange(m.expenses, prevM.expenses), true);
+    compareStripHtml = `<div class="compare-strip">
+      <div class="compare-card"><div class="lab">הכנסות מול חודש קודם</div><div class="val ${incLbl.cls}">${incLbl.text}</div></div>
+      <div class="compare-card"><div class="lab">הוצאות מול חודש קודם</div><div class="val ${expLbl.cls}">${expLbl.text}</div></div>
+    </div>`;
+  }
+
   // budget progress (only meaningful for the monthly view)
   let budgetCardHtml = '';
   if(type === 'month'){
     const relevantBudgets = state.budgets.filter(b => BUDGET_TYPES.includes(b.type) && b.budget > 0);
-    const income = m.sums['הכנסה'] || 0;
     const overCategories = relevantBudgets.filter(b => (catTotals[b.category]||0) > b.budget);
     let banner = '';
     if(income > 0 && m.outflow > income){
@@ -821,7 +1240,7 @@ function renderSummary(type, key, m){
     }
   }
 
-  content.innerHTML = budgetCardHtml + `
+  content.innerHTML = exportRowHtml + goalCardHtml + compareStripHtml + budgetCardHtml + `
     <div class="card">
       <h2>פילוח הוצאות לפי קטגוריה <span class="tag">${periodLabel(type, key)}</span></h2>
       <div class="chart-wrap small"><canvas id="pieChart"></canvas></div>
@@ -891,24 +1310,101 @@ function renderSummary(type, key, m){
   });
 }
 
+function buildReportText(type, key){
+  const m = computePeriod(type, key);
+  const income = m.sums['הכנסה'] || 0;
+  const catTotals = {};
+  m.txs.filter(t => EXPENSE_TYPES.includes(t.type)).forEach(t => {
+    catTotals[t.category] = (catTotals[t.category]||0) + t.amount;
+  });
+  const sorted = Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
+  const lines = [];
+  lines.push(`📊 דוח פיננסי - ${periodLabel(type, key)}`);
+  lines.push('');
+  lines.push(`הכנסות: ${fmt(income)}`);
+  lines.push(`הוצאות: ${fmt(m.expenses)}`);
+  lines.push(`חיסכון: ${fmt(m.sums['חיסכון']||0)}`);
+  lines.push(`יתרה: ${fmt(m.balance)}`);
+  if(sorted.length){
+    lines.push('');
+    lines.push('פילוח הוצאות:');
+    sorted.forEach(([cat,amt]) => lines.push(`• ${cat}: ${fmt(amt)}`));
+  }
+  return lines.join('\n');
+}
+async function shareReport(type, key){
+  const text = buildReportText(type, key);
+  if(navigator.share){
+    try{ await navigator.share({ title:'דוח פיננסי', text }); }
+    catch(err){ /* המשתמש ביטל את השיתוף - לא עושים כלום */ }
+    return;
+  }
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    try{ await navigator.clipboard.writeText(text); showToast('הדוח הועתק ללוח'); }
+    catch(err){ showToast('לא ניתן להעתיק את הדוח'); }
+    return;
+  }
+  showToast('שיתוף לא נתמך בדפדפן הזה');
+}
+
 function renderList(type, txs){
   const content = document.getElementById('tabContent');
   if(txs.length === 0){
     content.innerHTML = `<div class="card"><div class="empty">${emptyListMsg(type)}</div></div>`;
     return;
   }
-  const sorted = [...txs].sort((a,b)=> b.date.localeCompare(a.date));
-  content.innerHTML = `<div class="card">${sorted.map(t => `
-    <div class="tx-item">
-      <span class="type-dot" style="background:${TYPE_COLORS[t.type]||'#888'}"></span>
-      <div class="info">
-        <div class="cat">${t.category}</div>
-        <div class="meta">${t.date}${t.note ? ' · ' + t.note : ''}</div>
+  const chipTypes = ['הכנסה','קבועה','משתנה','הלוואה','חיסכון'];
+
+  function filtered(){
+    const q = state.listSearch.trim().toLowerCase();
+    return txs.filter(t => state.listTypeFilter.has(t.type) &&
+      (!q || t.category.toLowerCase().includes(q) || (t.note||'').toLowerCase().includes(q)));
+  }
+
+  function renderItems(){
+    const list = filtered().sort((a,b)=> b.date.localeCompare(a.date));
+    const container = document.getElementById('txListContainer');
+    if(!container) return;
+    if(list.length === 0){
+      container.innerHTML = `<div class="card"><div class="empty">אין תנועות תואמות לחיפוש/סינון</div></div>`;
+      return;
+    }
+    container.innerHTML = `<div class="card">${list.map(t => `
+      <div class="tx-item" style="cursor:pointer;" onclick="if(event.target.closest('.del'))return; openEditTx(${t.row})">
+        <span class="type-dot" style="background:${TYPE_COLORS[t.type]||'#888'}"></span>
+        <div class="info">
+          <div class="cat">${t.category}</div>
+          <div class="meta">${t.date}${t.note ? ' · ' + t.note : ''}</div>
+        </div>
+        <div class="amt ${t.type==='הכנסה'?'income':'expense'} mono">${t.type==='הכנסה'?'+':'-'}${fmt(t.amount)}</div>
+        <button class="del" onclick="event.stopPropagation(); deleteTx(${t.row})">✕</button>
       </div>
-      <div class="amt ${t.type==='הכנסה'?'income':'expense'} mono">${t.type==='הכנסה'?'+':'-'}${fmt(t.amount)}</div>
-      <button class="del" onclick="deleteTx(${t.row})">✕</button>
+    `).join('')}</div>`;
+  }
+
+  content.innerHTML = `
+    <div class="search-bar"><input type="text" id="txSearchInput" placeholder="חיפוש לפי קטגוריה או הערה…" value="${state.listSearch.replace(/"/g,'&quot;')}"></div>
+    <div class="filter-chips" id="txFilterChips">
+      ${chipTypes.map(ct => `<button data-type="${ct}" class="${state.listTypeFilter.has(ct)?'active':''}">${ct}</button>`).join('')}
     </div>
-  `).join('')}</div>`;
+    <div id="txListContainer"></div>
+  `;
+
+  document.getElementById('txSearchInput').oninput = (e) => {
+    state.listSearch = e.target.value;
+    renderItems();
+  };
+  document.querySelectorAll('#txFilterChips button').forEach(btn => {
+    btn.onclick = () => {
+      const t = btn.dataset.type;
+      if(state.listTypeFilter.has(t)) state.listTypeFilter.delete(t);
+      else state.listTypeFilter.add(t);
+      btn.classList.toggle('active');
+      renderItems();
+    };
+  });
+
+  renderItems();
 }
 
 loadData();
