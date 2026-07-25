@@ -501,9 +501,9 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   a{color:inherit;}
 
   header.top{
-    padding:22px 14px 8px;
+    padding:20px 12px 8px;
     display:flex; align-items:center; justify-content:space-between;
-    gap:8px;
+    gap:6px;
   }
   header.top .brand{
     display:flex; align-items:center; gap:8px; min-width:0;
@@ -514,11 +514,14 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     box-shadow:0 0 12px var(--income);
     flex-shrink:0;
   }
-  header.top h1{font-size:15px; font-weight:700; margin:0; letter-spacing:.2px; white-space:nowrap;}
+  header.top h1{font-size:13.5px; font-weight:700; margin:0; letter-spacing:.2px; white-space:nowrap;}
   header.top .settings-btn{
     background:var(--surface); border:1px solid var(--line); color:var(--text-muted);
-    width:32px;height:32px;border-radius:10px; display:flex;align-items:center;justify-content:center;
-    cursor:pointer; font-size:13px; flex-shrink:0;
+    width:29px;height:29px;border-radius:9px; display:flex;align-items:center;justify-content:center;
+    cursor:pointer; font-size:12px; flex-shrink:0;
+  }
+  header.top .settings-btn.pdf-btn{
+    width:auto; padding:0 9px; gap:2px; font-size:10.5px; font-weight:700; letter-spacing:.2px;
   }
 
   .period-tabs{
@@ -766,7 +769,8 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
 <header class="top">
   <div class="brand"><span class="dot"></span><h1>מעקב פיננסי</h1></div>
-  <div style="display:flex; gap:6px;">
+  <div style="display:flex; gap:5px;">
+    <button class="settings-btn pdf-btn" id="pdfBtn" title="הורדת PDF">⬇️PDF</button>
     <button class="settings-btn" id="themeBtn" title="החלפת מצב תצוגה">🌙</button>
     <button class="settings-btn" id="goalBtn" title="יעד חיסכון">🏆</button>
     <button class="settings-btn" id="recurringBtn" title="תנועות קבועות">🔁</button>
@@ -976,8 +980,18 @@ let state = {
   editingRow: null, // null = adding a new transaction, row number = editing that one
   listSearch: '',
   listTypeFilter: new Set(['הכנסה','קבועה','משתנה','הלוואה','חיסכון']),
+  catFilterMode: 'all', // 'all' | 'קבועה' | 'משתנה' - for the category breakdown card
   charts: {}
 };
+
+function catFilterTypes(){
+  return state.catFilterMode === 'all' ? EXPENSE_TYPES : [state.catFilterMode];
+}
+function catSectionTitle(){
+  if(state.catFilterMode === 'קבועה') return 'פילוח הוצאות קבועות';
+  if(state.catFilterMode === 'משתנה') return 'פילוח הוצאות משתנות';
+  return 'פילוח הוצאות לפי קטגוריה';
+}
 
 function monthKeyFromOffset(offset){
   const d = new Date();
@@ -1021,6 +1035,19 @@ function showToast(msg){
   t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'), 2200);
 }
+
+// ---------- Header PDF download ----------
+document.getElementById('pdfBtn').onclick = async () => {
+  if(!state.webAppUrl){ showToast('חברו קודם לגיליון דרך ⚙'); return; }
+  const type = state.periodType;
+  const key = periodKey(type, state.offsets[type]);
+  if(state.activeTab !== 'summary'){
+    state.activeTab = 'summary';
+    render();
+    await new Promise(r => setTimeout(r, 60)); // let the charts finish drawing
+  }
+  downloadReportPdf(type, key);
+};
 
 // ---------- Theme toggle ----------
 document.getElementById('themeBtn').onclick = () => {
@@ -1536,7 +1563,7 @@ function render(){
       <div class="hero-info">
         <div class="balance-label">${balanceLabelFor(type)}</div>
         <div class="balance ${m.balance<0?'neg':'pos'} mono">${fmt(m.balance)}</div>
-        <div class="sub">הכנסות ${fmt(income)} · הוצאות ${fmt(m.outflow)}</div>
+        <div class="sub">הכנסות ${fmt(income)} · יציאות ${fmt(m.outflow)}</div>
       </div>
     </div>
 
@@ -1572,18 +1599,19 @@ function renderSummary(type, key, m){
   const trend = trendSeries(type, state.offsets[type]);
   const income = m.sums['הכנסה'] || 0;
 
-  // category breakdown (expenses only) - computed early so the budget card can use it
+  // category breakdown (all expense types) - used by the budget card (budgets always compare against total spend)
   const catTotals = {};
   m.txs.filter(t => EXPENSE_TYPES.includes(t.type)).forEach(t => {
     catTotals[t.category] = (catTotals[t.category]||0) + t.amount;
   });
-  const sortedCats = Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
 
-  // export / share row
-  const exportRowHtml = `<div style="display:flex; justify-content:flex-start; gap:8px; margin-bottom:12px;">
-    <button class="export-btn" onclick="downloadReportPdf('${type}','${key}')">⬇️ הורדת PDF</button>
-    <button class="export-btn" onclick="shareReport('${type}','${key}')">📤 שיתוף דוח</button>
-  </div>`;
+  // filtered breakdown for the category-breakdown card itself (all / fixed-only / variable-only)
+  const filterTypes = catFilterTypes();
+  const filteredCatTotals = {};
+  m.txs.filter(t => filterTypes.includes(t.type)).forEach(t => {
+    filteredCatTotals[t.category] = (filteredCatTotals[t.category]||0) + t.amount;
+  });
+  const sortedCats = Object.entries(filteredCatTotals).sort((a,b)=>b[1]-a[1]);
 
   // savings goal (cumulative across all time, shown regardless of period)
   let goalCardHtml = '';
@@ -1664,9 +1692,14 @@ function renderSummary(type, key, m){
     }
   }
 
-  content.innerHTML = exportRowHtml + goalCardHtml + compareStripHtml + budgetCardHtml + `
+  content.innerHTML = goalCardHtml + compareStripHtml + budgetCardHtml + `
     <div class="card">
-      <h2>פילוח הוצאות לפי קטגוריה <span class="tag">${periodLabel(type, key)}</span></h2>
+      <h2>${catSectionTitle()} <span class="tag">${periodLabel(type, key)}</span></h2>
+      <div class="filter-chips" id="catFilterChips">
+        <button data-mode="all" class="${state.catFilterMode==='all'?'active':''}">הכל</button>
+        <button data-mode="קבועה" class="${state.catFilterMode==='קבועה'?'active':''}">הוצאות קבועות</button>
+        <button data-mode="משתנה" class="${state.catFilterMode==='משתנה'?'active':''}">הוצאות משתנות</button>
+      </div>
       <div class="chart-wrap small"><canvas id="pieChart"></canvas></div>
       <ul class="cat-list" id="catList"></ul>
     </div>
@@ -1675,6 +1708,10 @@ function renderSummary(type, key, m){
       <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
     </div>
   `;
+
+  document.querySelectorAll('#catFilterChips button').forEach(btn => {
+    btn.onclick = () => { state.catFilterMode = btn.dataset.mode; render(); };
+  });
 
   const catList = document.getElementById('catList');
   if(sortedCats.length === 0){
@@ -1720,7 +1757,7 @@ function renderSummary(type, key, m){
       labels: trend.labels,
       datasets:[
         { label:'הכנסות', data: incomeData, backgroundColor:'#4FD1A5', borderRadius:5 },
-        { label:'הוצאות', data: expenseData, backgroundColor:'#FF6F6B', borderRadius:5 }
+        { label:'יציאות', data: expenseData, backgroundColor:'#FF6F6B', borderRadius:5 }
       ]
     },
     options:{
@@ -1802,7 +1839,7 @@ function buildPdfReportContainer(type, key, m, catTotals, sortedCats){
     <div style="font-size:22px; font-weight:700; margin-bottom:2px;">📊 דוח פיננסי</div>
     <div style="font-size:13px; color:#666; margin-bottom:18px;">${periodLabel(type, key)}</div>
     <table style="width:100%; border-collapse:collapse; font-size:14px; margin-bottom:24px;">${summaryRows}</table>
-    <div style="font-size:15px; font-weight:700; margin-bottom:8px;">פילוח הוצאות לפי קטגוריה</div>
+    <div style="font-size:15px; font-weight:700; margin-bottom:8px;">${catSectionTitle()}</div>
     <table style="width:100%; border-collapse:collapse; font-size:13px; margin-bottom:24px;">${catRows}</table>
     <div style="font-size:15px; font-weight:700; margin-bottom:8px;">תנועות בתקופה (${sorted.length})</div>
     <table style="width:100%; border-collapse:collapse;">${txRows}</table>
@@ -1817,8 +1854,9 @@ async function downloadReportPdf(type, key){
   }
   showToast('מכין PDF…');
   const m = computePeriod(type, key);
+  const filterTypes = catFilterTypes();
   const catTotals = {};
-  m.txs.filter(t => EXPENSE_TYPES.includes(t.type)).forEach(t => {
+  m.txs.filter(t => filterTypes.includes(t.type)).forEach(t => {
     catTotals[t.category] = (catTotals[t.category]||0) + t.amount;
   });
   const sortedCats = Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
