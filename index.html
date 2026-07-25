@@ -1157,7 +1157,8 @@ function renderSummary(type, key, m){
   const sortedCats = Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
 
   // export / share row
-  const exportRowHtml = `<div style="display:flex; justify-content:flex-end; margin-bottom:12px;">
+  const exportRowHtml = `<div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;">
+    <button class="export-btn" onclick="downloadReport('${type}','${key}')">⬇️ הורדה</button>
     <button class="export-btn" onclick="shareReport('${type}','${key}')">📤 שיתוף דוח</button>
   </div>`;
 
@@ -1345,6 +1346,22 @@ async function shareReport(type, key){
     return;
   }
   showToast('שיתוף לא נתמך בדפדפן הזה');
+}
+
+function downloadReport(type, key){
+  const text = buildReportText(type, key);
+  const safeLabel = periodLabel(type, key).replace(/[\\/:*?"<>|]/g, '-');
+  const filename = `דוח-${safeLabel}.txt`;
+  const blob = new Blob([text], { type:'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  showToast('הקובץ הורד');
 }
 
 function renderList(type, txs){
