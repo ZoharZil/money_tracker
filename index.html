@@ -1563,7 +1563,7 @@ function render(){
       <div class="hero-info">
         <div class="balance-label">${balanceLabelFor(type)}</div>
         <div class="balance ${m.balance<0?'neg':'pos'} mono">${fmt(m.balance)}</div>
-        <div class="sub">הכנסות ${fmt(income)} · יציאות ${fmt(m.outflow)}</div>
+        <div class="sub">הכנסות ${fmt(income)} · הוצאות ${fmt(m.outflow)}</div>
       </div>
     </div>
 
@@ -1757,7 +1757,7 @@ function renderSummary(type, key, m){
       labels: trend.labels,
       datasets:[
         { label:'הכנסות', data: incomeData, backgroundColor:'#4FD1A5', borderRadius:5 },
-        { label:'יציאות', data: expenseData, backgroundColor:'#FF6F6B', borderRadius:5 }
+        { label:'הוצאות', data: expenseData, backgroundColor:'#FF6F6B', borderRadius:5 }
       ]
     },
     options:{
@@ -1847,6 +1847,65 @@ function buildPdfReportContainer(type, key, m, catTotals, sortedCats){
   return container;
 }
 
+function catBreakdownFor(txs, types){
+  const totals = {};
+  txs.filter(t => types.includes(t.type)).forEach(t => {
+    totals[t.category] = (totals[t.category]||0) + t.amount;
+  });
+  return Object.entries(totals).sort((a,b)=>b[1]-a[1]);
+}
+
+async function renderLabeledPieCanvas(titleText, sortedCatsArr){
+  const canvas = document.createElement('canvas');
+  canvas.width = 640;
+  canvas.height = 480;
+  const ctx = canvas.getContext('2d');
+  const chart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: sortedCatsArr.map(c => c[0]),
+      datasets: [{
+        data: sortedCatsArr.map(c => c[1]),
+        backgroundColor: sortedCatsArr.map((_,i) => CAT_PALETTE[i % CAT_PALETTE.length]),
+        borderColor: '#ffffff',
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: false,
+      animation: false,
+      plugins: {
+        title: { display:true, text:titleText, color:'#111827', font:{ size:18, family:'Heebo', weight:'bold' }, padding:{bottom:14} },
+        legend: {
+          display: true,
+          position: 'bottom',
+          rtl: true,
+          textDirection: 'rtl',
+          labels: {
+            color: '#111827',
+            font: { family:'Heebo', size:12.5 },
+            padding: 12,
+            generateLabels: (chart) => {
+              const data = chart.data;
+              return data.labels.map((label, i) => ({
+                text: `${label}: ${fmt(data.datasets[0].data[i])}`,
+                fillStyle: data.datasets[0].backgroundColor[i],
+                strokeStyle: data.datasets[0].backgroundColor[i],
+                index: i
+              }));
+            }
+          }
+        }
+      }
+    }
+  });
+  // wait a couple animation frames so the canvas is fully painted before we read it
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  const dataUrl = canvas.toDataURL('image/png');
+  chart.destroy();
+  return { dataUrl, width: canvas.width, height: canvas.height };
+}
+
 async function downloadReportPdf(type, key){
   if(typeof window.jspdf === 'undefined' || typeof window.html2canvas === 'undefined'){
     showToast('ספריית ה-PDF לא נטענה, נסו לרענן את הדף');
@@ -1868,6 +1927,16 @@ async function downloadReportPdf(type, key){
     const reportCanvas = await html2canvas(container, { backgroundColor:'#ffffff', scale:2 });
     document.body.removeChild(container);
 
+    // three fully-labeled breakdown charts, regardless of which filter is active on screen
+    const allBreak = catBreakdownFor(m.txs, EXPENSE_TYPES);
+    const fixedBreak = catBreakdownFor(m.txs, ['קבועה']);
+    const variableBreak = catBreakdownFor(m.txs, ['משתנה']);
+
+    const pieImages = [];
+    if(allBreak.length) pieImages.push(await renderLabeledPieCanvas('פילוח הוצאות - הכל', allBreak));
+    if(fixedBreak.length) pieImages.push(await renderLabeledPieCanvas('פילוח הוצאות - הוצאות קבועות', fixedBreak));
+    if(variableBreak.length) pieImages.push(await renderLabeledPieCanvas('פילוח הוצאות - הוצאות משתנות', variableBreak));
+
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit:'pt', format:'a4' });
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -1876,28 +1945,29 @@ async function downloadReportPdf(type, key){
     const usableWidth = pageWidth - margin * 2;
     let cursorY = margin;
 
-    function addCanvasImage(canvas, gapAfter){
-      const imgData = canvas.toDataURL('image/png');
+    function addImage(dataUrl, imgWidth, imgHeight, gapAfter){
       let w = usableWidth;
-      let h = canvas.height * (usableWidth / canvas.width);
+      let h = imgHeight * (usableWidth / imgWidth);
       const maxH = pageHeight - margin * 2;
       if(h > maxH){
-        const ratio2 = maxH / canvas.height;
-        h = canvas.height * ratio2;
-        w = canvas.width * ratio2;
+        const ratio2 = maxH / imgHeight;
+        h = imgHeight * ratio2;
+        w = imgWidth * ratio2;
       }
       if(cursorY + h > pageHeight - margin && cursorY > margin){
         doc.addPage();
         cursorY = margin;
       }
-      doc.addImage(imgData, 'PNG', margin, cursorY, w, h);
+      doc.addImage(dataUrl, 'PNG', margin, cursorY, w, h);
       cursorY += h + (gapAfter || 14);
     }
+    function addCanvasImage(canvas, gapAfter){
+      addImage(canvas.toDataURL('image/png'), canvas.width, canvas.height, gapAfter);
+    }
 
-    addCanvasImage(reportCanvas, 18);
+    addImage(reportCanvas.toDataURL('image/png'), reportCanvas.width, reportCanvas.height, 18);
 
-    const pieCanvas = document.getElementById('pieChart');
-    if(pieCanvas && state.charts.pie) addCanvasImage(pieCanvas, 18);
+    pieImages.forEach(img => addImage(img.dataUrl, img.width, img.height, 18));
 
     const trendCanvas = document.getElementById('trendChart');
     if(trendCanvas && state.charts.trend) addCanvasImage(trendCanvas, 18);
