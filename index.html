@@ -987,7 +987,7 @@ if(document.readyState !== 'loading') applyThemeButtonIcon();
 
 const EXPENSE_TYPES = ['קבועה','משתנה','הלוואה'];
 const TYPE_COLORS = {'הכנסה':'#4FD1A5','קבועה':'#FF6F6B','משתנה':'#F2985E','הלוואה':'#F2B84B','חיסכון':'#7C9EFF'};
-const CAT_PALETTE = ['#4FD1A5','#FF6F6B','#F2B84B','#7C9EFF','#B98CFF','#4FC3E8','#F2985E','#E888C0','#8CE87B','#E8D24F','#7BB0E8','#E86B8C'];
+const CAT_PALETTE = ['#4FD1A5','#FF6F6B','#F2B84B','#7C9EFF','#B98CFF','#4FC3E8','#F2985E','#E888C0','#8CE87B','#E8D24F','#7BB0E8','#E86B8C','#2FB8A6','#D65DB1','#B4D65D','#6A7FDB','#FF9A76','#A0785A','#5DA9DB','#C77DFF'];
 
 const MONTH_NAMES = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
 const MONTH_SHORT = ['ינו','פבר','מרץ','אפר','מאי','יונ','יול','אוג','ספט','אוק','נוב','דצמ'];
@@ -1061,6 +1061,24 @@ function showToast(msg){
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+// עוטף כל בקשה לגיליון בניסיון חוזר - Apps Script לפעמים "נתקע" זמנית או מגיב לאט,
+// ורוב הכשלים האלה חולפים בניסיון שני. רק אם גם הניסיון האחרון נכשל, השגיאה עולה הלאה.
+async function fetchWithRetry(url, options, retries){
+  retries = retries === undefined ? 2 : retries;
+  let lastErr;
+  for(let attempt = 0; attempt <= retries; attempt++){
+    try{
+      const res = await fetch(url, options);
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      return res;
+    }catch(err){
+      lastErr = err;
+      if(attempt < retries) await new Promise(r => setTimeout(r, 700 * (attempt + 1)));
+    }
+  }
+  throw lastErr;
 }
 
 // ---------- Header PDF download ----------
@@ -1155,7 +1173,7 @@ document.getElementById('saveBudget').onclick = async () => {
   saveBtn.textContent = 'שומר…'; saveBtn.disabled = true;
   try{
     for(const change of changes){
-      await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'setBudget', ...change }) });
+      await fetchWithRetry(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'setBudget', ...change }) });
       // עדכון מקומי מיידי - בלי לקרוא מחדש את כל הגיליון
       const idx = state.budgets.findIndex(b => b.type === change.type && b.category === change.category);
       if(change.budget <= 0){
@@ -1260,12 +1278,12 @@ document.getElementById('addRecurringBtn').onclick = async () => {
   btn.textContent = editing ? 'מעדכן…' : 'מוסיף…'; btn.disabled = true;
   try{
     if(editing){
-      await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'editRecurring', row:editing, type:recSelectedType, category, amount, day, note }) });
+      await fetchWithRetry(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'editRecurring', row:editing, type:recSelectedType, category, amount, day, note }) });
       // עדכון מקומי מיידי - בלי לקרוא מחדש את כל הגיליון
       const idx = state.recurring.findIndex(r => r.row === editing);
       if(idx !== -1) state.recurring[idx] = { row:editing, type:recSelectedType, category, amount, note, day };
     } else {
-      const res = await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'addRecurring', type:recSelectedType, category, amount, day, note }) });
+      const res = await fetchWithRetry(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'addRecurring', type:recSelectedType, category, amount, day, note }) });
       const data = await res.json();
       if(data && data.row){
         state.recurring.push({ row:data.row, type:recSelectedType, category, amount, note, day });
@@ -1282,7 +1300,7 @@ document.getElementById('addRecurringBtn').onclick = async () => {
 async function deleteRecurring(row){
   if(!confirm('למחוק תבנית זו?')) return;
   try{
-    await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'deleteRecurring', row }) });
+    await fetchWithRetry(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'deleteRecurring', row }) });
     state.recurring = state.recurring.filter(r => r.row !== row);
     if(editingRecurringRow === row) resetRecurringForm();
     renderRecurringList();
@@ -1311,7 +1329,7 @@ async function addAllMissingRecurring(){
   try{
     for(const r of missing){
       const date = dateForRecurringDay(r.day);
-      const res = await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ date, type:r.type, category:r.category, amount:r.amount, note:r.note }) });
+      const res = await fetchWithRetry(state.webAppUrl, { method:'POST', body: JSON.stringify({ date, type:r.type, category:r.category, amount:r.amount, note:r.note }) });
       const data = await res.json();
       if(data && data.row){
         state.transactions.push({ row:data.row, date, type:r.type, category:r.category, amount:r.amount, note:r.note });
@@ -1330,7 +1348,7 @@ async function addSingleMissingRecurring(row){
   showToast('מוסיף...');
   try{
     const date = dateForRecurringDay(r.day);
-    const res = await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ date, type:r.type, category:r.category, amount:r.amount, note:r.note }) });
+    const res = await fetchWithRetry(state.webAppUrl, { method:'POST', body: JSON.stringify({ date, type:r.type, category:r.category, amount:r.amount, note:r.note }) });
     const data = await res.json();
     if(data && data.row){
       state.transactions.push({ row:data.row, date, type:r.type, category:r.category, amount:r.amount, note:r.note });
@@ -1358,8 +1376,8 @@ document.getElementById('saveGoal').onclick = async () => {
   const btn = document.getElementById('saveGoal');
   btn.textContent = 'שומר…'; btn.disabled = true;
   try{
-    await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'setSetting', key:'savings_goal_amount', value:amount }) });
-    await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'setSetting', key:'savings_goal_date', value:date }) });
+    await fetchWithRetry(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'setSetting', key:'savings_goal_amount', value:amount }) });
+    await fetchWithRetry(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'setSetting', key:'savings_goal_date', value:date }) });
     state.settings.savings_goal_amount = amount; // עדכון מקומי - בלי לקרוא מחדש את כל הגיליון
     state.settings.savings_goal_date = date;
     document.getElementById('goalOverlay').classList.remove('open');
@@ -1386,7 +1404,7 @@ async function loadData(){
   app.innerHTML = '<div class="loading">טוען נתונים…</div>';
   fab.style.display = 'none';
   try{
-    const res = await fetch(state.webAppUrl);
+    const res = await fetchWithRetry(state.webAppUrl);
     const data = await res.json();
     if(!data.ok) throw new Error(data.error || 'שגיאה לא ידועה');
     state.transactions = data.transactions || [];
@@ -1423,7 +1441,7 @@ async function silentRefresh(){
   if(anyOverlayOpen()) return; // לא לדרוס נתונים תוך כדי שמישהו באמצע מילוי טופס
   silentRefreshInProgress = true;
   try{
-    const res = await fetch(state.webAppUrl);
+    const res = await fetchWithRetry(state.webAppUrl);
     const data = await res.json();
     if(data && data.ok){
       state.transactions = data.transactions || [];
@@ -1571,14 +1589,14 @@ document.getElementById('saveAdd').onclick = async () => {
   saveBtn.textContent = 'שומר…'; saveBtn.disabled = true;
   try{
     if(isNewCat){
-      await fetch(state.webAppUrl, {
+      await fetchWithRetry(state.webAppUrl, {
         method:'POST',
         body: JSON.stringify({ action:'addCategory', type:selectedType, category })
       });
       state.categories.push({ type:selectedType, category });
     }
     if(editing){
-      await fetch(state.webAppUrl, {
+      await fetchWithRetry(state.webAppUrl, {
         method:'POST',
         body: JSON.stringify({ action:'edit', row:editing, date, type:selectedType, category, amount, note })
       });
@@ -1586,7 +1604,7 @@ document.getElementById('saveAdd').onclick = async () => {
       const idx = state.transactions.findIndex(t => t.row === editing);
       if(idx !== -1) state.transactions[idx] = { row:editing, date, type:selectedType, category, amount, note };
     } else {
-      const res = await fetch(state.webAppUrl, {
+      const res = await fetchWithRetry(state.webAppUrl, {
         method:'POST',
         body: JSON.stringify({date, type:selectedType, category, amount, note})
       });
@@ -1609,7 +1627,7 @@ document.getElementById('saveAdd').onclick = async () => {
 async function deleteTx(row){
   if(!confirm('למחוק תנועה זו?')) return;
   try{
-    await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({action:'delete', row}) });
+    await fetchWithRetry(state.webAppUrl, { method:'POST', body: JSON.stringify({action:'delete', row}) });
     state.transactions = state.transactions.filter(t => t.row !== row); // עדכון מקומי - בלי לקרוא מחדש את כל הגיליון
     showToast('נמחק');
     render();
