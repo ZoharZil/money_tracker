@@ -1156,10 +1156,19 @@ document.getElementById('saveBudget').onclick = async () => {
   try{
     for(const change of changes){
       await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'setBudget', ...change }) });
+      // עדכון מקומי מיידי - בלי לקרוא מחדש את כל הגיליון
+      const idx = state.budgets.findIndex(b => b.type === change.type && b.category === change.category);
+      if(change.budget <= 0){
+        if(idx !== -1) state.budgets.splice(idx, 1);
+      } else if(idx !== -1){
+        state.budgets[idx].budget = change.budget;
+      } else {
+        state.budgets.push({ type: change.type, category: change.category, budget: change.budget });
+      }
     }
     document.getElementById('budgetOverlay').classList.remove('open');
     showToast('התקציבים נשמרו');
-    await loadData();
+    render();
   }catch(err){
     showToast('שגיאה בשמירת התקציבים');
   }
@@ -1252,12 +1261,16 @@ document.getElementById('addRecurringBtn').onclick = async () => {
   try{
     if(editing){
       await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'editRecurring', row:editing, type:recSelectedType, category, amount, day, note }) });
+      // עדכון מקומי מיידי - בלי לקרוא מחדש את כל הגיליון
+      const idx = state.recurring.findIndex(r => r.row === editing);
+      if(idx !== -1) state.recurring[idx] = { row:editing, type:recSelectedType, category, amount, note, day };
     } else {
-      await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'addRecurring', type:recSelectedType, category, amount, day, note }) });
+      const res = await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'addRecurring', type:recSelectedType, category, amount, day, note }) });
+      const data = await res.json();
+      if(data && data.row){
+        state.recurring.push({ row:data.row, type:recSelectedType, category, amount, note, day });
+      }
     }
-    const res = await fetch(state.webAppUrl);
-    const data = await res.json();
-    if(data.ok){ state.recurring = data.recurring || []; }
     renderRecurringList();
     resetRecurringForm();
     showToast(editing ? 'התבנית עודכנה' : 'התבנית נוספה');
@@ -1298,10 +1311,14 @@ async function addAllMissingRecurring(){
   try{
     for(const r of missing){
       const date = dateForRecurringDay(r.day);
-      await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ date, type:r.type, category:r.category, amount:r.amount, note:r.note }) });
+      const res = await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ date, type:r.type, category:r.category, amount:r.amount, note:r.note }) });
+      const data = await res.json();
+      if(data && data.row){
+        state.transactions.push({ row:data.row, date, type:r.type, category:r.category, amount:r.amount, note:r.note });
+      }
     }
     showToast('התנועות הקבועות נוספו');
-    await loadData(); // refreshes state + re-renders automatically, no page reload needed
+    render(); // עדכון מקומי - בלי לקרוא מחדש את כל הגיליון
   }catch(err){
     showToast('שגיאה בהוספת התנועות הקבועות');
   }
@@ -1313,9 +1330,13 @@ async function addSingleMissingRecurring(row){
   showToast('מוסיף...');
   try{
     const date = dateForRecurringDay(r.day);
-    await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ date, type:r.type, category:r.category, amount:r.amount, note:r.note }) });
+    const res = await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ date, type:r.type, category:r.category, amount:r.amount, note:r.note }) });
+    const data = await res.json();
+    if(data && data.row){
+      state.transactions.push({ row:data.row, date, type:r.type, category:r.category, amount:r.amount, note:r.note });
+    }
     showToast(`"${r.category}" נוספה`);
-    await loadData(); // refreshes state + re-renders automatically, no page reload needed
+    render(); // עדכון מקומי - בלי לקרוא מחדש את כל הגיליון
   }catch(err){
     showToast('שגיאה בהוספה');
   }
@@ -1339,9 +1360,11 @@ document.getElementById('saveGoal').onclick = async () => {
   try{
     await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'setSetting', key:'savings_goal_amount', value:amount }) });
     await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'setSetting', key:'savings_goal_date', value:date }) });
+    state.settings.savings_goal_amount = amount; // עדכון מקומי - בלי לקרוא מחדש את כל הגיליון
+    state.settings.savings_goal_date = date;
     document.getElementById('goalOverlay').classList.remove('open');
     showToast('היעד נשמר');
-    await loadData();
+    render();
   }catch(err){
     showToast('שגיאה בשמירת היעד');
   }
@@ -1389,6 +1412,37 @@ async function loadData(){
     </div>`;
   }
 }
+
+// ---------- Quiet background sync (no loading/error screens) ----------
+let silentRefreshInProgress = false;
+function anyOverlayOpen(){
+  return !!document.querySelector('.sheet-overlay.open');
+}
+async function silentRefresh(){
+  if(!state.webAppUrl || silentRefreshInProgress) return;
+  if(anyOverlayOpen()) return; // לא לדרוס נתונים תוך כדי שמישהו באמצע מילוי טופס
+  silentRefreshInProgress = true;
+  try{
+    const res = await fetch(state.webAppUrl);
+    const data = await res.json();
+    if(data && data.ok){
+      state.transactions = data.transactions || [];
+      state.categories = data.categories || [];
+      state.budgets = data.budgets || [];
+      state.recurring = data.recurring || [];
+      state.settings = data.settings || {};
+      render();
+    }
+  }catch(err){
+    console.error('Silent refresh failed (ignored):', err);
+  }
+  silentRefreshInProgress = false;
+}
+// מרעננים בשקט כשחוזרים לטאב/לאפליקציה - שימושי כששני אנשים משתמשים באותו גיליון במקביל
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible') silentRefresh();
+});
+window.addEventListener('focus', silentRefresh);
 
 // ---------- Period nav ----------
 document.getElementById('prevPeriod').onclick = () => { state.offsets[state.periodType]--; render(); };
@@ -1528,16 +1582,24 @@ document.getElementById('saveAdd').onclick = async () => {
         method:'POST',
         body: JSON.stringify({ action:'edit', row:editing, date, type:selectedType, category, amount, note })
       });
+      // עדכון מקומי מיידי - אין צורך לקרוא מחדש את כל הגיליון
+      const idx = state.transactions.findIndex(t => t.row === editing);
+      if(idx !== -1) state.transactions[idx] = { row:editing, date, type:selectedType, category, amount, note };
     } else {
-      await fetch(state.webAppUrl, {
+      const res = await fetch(state.webAppUrl, {
         method:'POST',
         body: JSON.stringify({date, type:selectedType, category, amount, note})
       });
+      const data = await res.json();
+      // עדכון מקומי מיידי עם מספר השורה שחזר מהשרת - אין צורך לקרוא מחדש את כל הגיליון
+      if(data && data.row){
+        state.transactions.push({ row:data.row, date, type:selectedType, category, amount, note });
+      }
     }
     state.editingRow = null;
     document.getElementById('addOverlay').classList.remove('open');
     showToast(editing ? 'עודכן בהצלחה' : 'נשמר בהצלחה');
-    await loadData();
+    render();
   }catch(err){
     showToast('שגיאה בשמירה, נסו שוב');
   }
@@ -1548,8 +1610,9 @@ async function deleteTx(row){
   if(!confirm('למחוק תנועה זו?')) return;
   try{
     await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({action:'delete', row}) });
+    state.transactions = state.transactions.filter(t => t.row !== row); // עדכון מקומי - בלי לקרוא מחדש את כל הגיליון
     showToast('נמחק');
-    await loadData();
+    render();
   }catch(err){ showToast('שגיאה במחיקה'); }
 }
 
