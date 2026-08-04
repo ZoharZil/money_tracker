@@ -641,6 +641,12 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     width:100%; background:var(--surface); border:1px solid var(--line); color:var(--text);
     border-radius:12px; padding:11px 14px; font-family:inherit; font-size:14px;
   }
+  .sort-bar{display:flex; align-items:center; gap:8px; margin-bottom:12px;}
+  .sort-bar label{font-size:12px; color:var(--text-muted); flex-shrink:0;}
+  .sort-bar select{
+    flex:1; background:var(--surface); border:1px solid var(--line); color:var(--text);
+    border-radius:12px; padding:9px 12px; font-family:inherit; font-size:13px;
+  }
   .filter-chips{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;}
   .filter-chips button{
     border:1px solid var(--line); background:var(--surface); color:var(--text-muted);
@@ -1006,6 +1012,7 @@ let state = {
   editingRow: null, // null = adding a new transaction, row number = editing that one
   listSearch: '',
   listTypeFilter: new Set(['הכנסה','קבועה','משתנה','הלוואה','חיסכון']),
+  listSort: 'date_desc', // date_desc | date_asc | amount_desc | amount_asc | category_asc | type_asc
   catFilterMode: 'all', // 'all' | 'קבועה' | 'משתנה' - for the category breakdown card
   recurringBannerExpanded: false,
   charts: {}
@@ -2180,6 +2187,14 @@ function renderList(type, txs){
     return;
   }
   const chipTypes = ['הכנסה','קבועה','משתנה','הלוואה','חיסכון'];
+  const sortOptions = [
+    { value:'date_desc', label:'תאריך: חדש ← ישן' },
+    { value:'date_asc', label:'תאריך: ישן ← חדש' },
+    { value:'amount_desc', label:'סכום: גבוה ← נמוך' },
+    { value:'amount_asc', label:'סכום: נמוך ← גבוה' },
+    { value:'category_asc', label:'שם קטגוריה (א-ת)' },
+    { value:'type_asc', label:'סוג תנועה' }
+  ];
 
   function filtered(){
     const q = state.listSearch.trim().toLowerCase();
@@ -2187,8 +2202,21 @@ function renderList(type, txs){
       (!q || t.category.toLowerCase().includes(q) || (t.note||'').toLowerCase().includes(q)));
   }
 
+  function sortList(list){
+    const arr = [...list];
+    switch(state.listSort){
+      case 'date_asc': return arr.sort((a,b) => a.date.localeCompare(b.date) || a.row - b.row);
+      case 'amount_desc': return arr.sort((a,b) => b.amount - a.amount);
+      case 'amount_asc': return arr.sort((a,b) => a.amount - b.amount);
+      case 'category_asc': return arr.sort((a,b) => a.category.localeCompare(b.category, 'he'));
+      case 'type_asc': return arr.sort((a,b) => a.type.localeCompare(b.type, 'he') || b.date.localeCompare(a.date));
+      case 'date_desc':
+      default: return arr.sort((a,b) => b.date.localeCompare(a.date) || b.row - a.row);
+    }
+  }
+
   function renderItems(){
-    const list = filtered().sort((a,b)=> b.date.localeCompare(a.date));
+    const list = sortList(filtered());
     const container = document.getElementById('txListContainer');
     if(!container) return;
     if(list.length === 0){
@@ -2210,6 +2238,12 @@ function renderList(type, txs){
 
   content.innerHTML = `
     <div class="search-bar"><input type="text" id="txSearchInput" placeholder="חיפוש לפי קטגוריה או הערה…" value="${state.listSearch.replace(/"/g,'&quot;')}"></div>
+    <div class="sort-bar">
+      <label for="txSortSelect">מיון:</label>
+      <select id="txSortSelect">
+        ${sortOptions.map(o => `<option value="${o.value}" ${state.listSort===o.value?'selected':''}>${o.label}</option>`).join('')}
+      </select>
+    </div>
     <div class="filter-chips" id="txFilterChips">
       ${chipTypes.map(ct => `<button data-type="${ct}" class="${state.listTypeFilter.has(ct)?'active':''}">${ct}</button>`).join('')}
     </div>
@@ -2218,6 +2252,10 @@ function renderList(type, txs){
 
   document.getElementById('txSearchInput').oninput = (e) => {
     state.listSearch = e.target.value;
+    renderItems();
+  };
+  document.getElementById('txSortSelect').onchange = (e) => {
+    state.listSort = e.target.value;
     renderItems();
   };
   document.querySelectorAll('#txFilterChips button').forEach(btn => {
