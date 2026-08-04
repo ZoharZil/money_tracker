@@ -1290,7 +1290,7 @@ document.getElementById('addRecurringBtn').onclick = async () => {
       const idx = state.recurring.findIndex(r => r.row === editing);
       if(idx !== -1) state.recurring[idx] = { row:editing, type:recSelectedType, category, amount, note, day };
     } else {
-      const res = await fetchWithRetry(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'addRecurring', type:recSelectedType, category, amount, day, note }) });
+      const res = await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'addRecurring', type:recSelectedType, category, amount, day, note }) });
       const data = await res.json();
       if(data && data.row){
         state.recurring.push({ row:data.row, type:recSelectedType, category, amount, note, day });
@@ -1307,7 +1307,7 @@ document.getElementById('addRecurringBtn').onclick = async () => {
 async function deleteRecurring(row){
   if(!confirm('למחוק תבנית זו?')) return;
   try{
-    await fetchWithRetry(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'deleteRecurring', row }) });
+    await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'deleteRecurring', row }) });
     state.recurring = state.recurring.filter(r => r.row !== row);
     if(editingRecurringRow === row) resetRecurringForm();
     renderRecurringList();
@@ -1336,7 +1336,7 @@ async function addAllMissingRecurring(){
   try{
     for(const r of missing){
       const date = dateForRecurringDay(r.day);
-      const res = await fetchWithRetry(state.webAppUrl, { method:'POST', body: JSON.stringify({ date, type:r.type, category:r.category, amount:r.amount, note:r.note }) });
+      const res = await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ date, type:r.type, category:r.category, amount:r.amount, note:r.note }) });
       const data = await res.json();
       if(data && data.row){
         state.transactions.push({ row:data.row, date, type:r.type, category:r.category, amount:r.amount, note:r.note });
@@ -1355,7 +1355,7 @@ async function addSingleMissingRecurring(row){
   showToast('מוסיף...');
   try{
     const date = dateForRecurringDay(r.day);
-    const res = await fetchWithRetry(state.webAppUrl, { method:'POST', body: JSON.stringify({ date, type:r.type, category:r.category, amount:r.amount, note:r.note }) });
+    const res = await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ date, type:r.type, category:r.category, amount:r.amount, note:r.note }) });
     const data = await res.json();
     if(data && data.row){
       state.transactions.push({ row:data.row, date, type:r.type, category:r.category, amount:r.amount, note:r.note });
@@ -1611,7 +1611,7 @@ document.getElementById('saveAdd').onclick = async () => {
       const idx = state.transactions.findIndex(t => t.row === editing);
       if(idx !== -1) state.transactions[idx] = { row:editing, date, type:selectedType, category, amount, note };
     } else {
-      const res = await fetchWithRetry(state.webAppUrl, {
+      const res = await fetch(state.webAppUrl, {
         method:'POST',
         body: JSON.stringify({date, type:selectedType, category, amount, note})
       });
@@ -1634,7 +1634,7 @@ document.getElementById('saveAdd').onclick = async () => {
 async function deleteTx(row){
   if(!confirm('למחוק תנועה זו?')) return;
   try{
-    await fetchWithRetry(state.webAppUrl, { method:'POST', body: JSON.stringify({action:'delete', row}) });
+    await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({action:'delete', row}) });
     state.transactions = state.transactions.filter(t => t.row !== row); // עדכון מקומי - בלי לקרוא מחדש את כל הגיליון
     showToast('נמחק');
     render();
