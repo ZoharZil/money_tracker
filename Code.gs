@@ -94,8 +94,8 @@ function doGet(e) {
     if (recSheet) {
       const rLast = recSheet.getLastRow();
       if (rLast >= 2) {
-        recurring = recSheet.getRange(2, 1, rLast - 1, 4).getValues()
-          .map(function (r, idx) { return { row: idx + 2, type: r[0], category: r[1], amount: Number(r[2]) || 0, note: r[3] || '' }; })
+        recurring = recSheet.getRange(2, 1, rLast - 1, 5).getValues()
+          .map(function (r, idx) { return { row: idx + 2, type: r[0], category: r[1], amount: Number(r[2]) || 0, note: r[3] || '', day: Number(r[4]) || 0 }; })
           .filter(function (r) { return r.type && r.category && r.amount; });
       }
     }
@@ -197,11 +197,12 @@ function doPost(e) {
       const category = (body.category || '').trim();
       const amount = Number(body.amount) || 0;
       const note = body.note || '';
+      const day = Number(body.day) || 0;
       if (!type || !category || !amount) {
         return jsonResponse_({ ok: false, error: 'missing fields' });
       }
-      recSheet.appendRow([type, category, amount, note]);
-      return jsonResponse_({ ok: true });
+      recSheet.appendRow([type, category, amount, note, day || '']);
+      return jsonResponse_({ ok: true, row: recSheet.getLastRow() });
     }
 
     if (body.action === 'deleteRecurring') {
@@ -211,6 +212,24 @@ function doPost(e) {
         return jsonResponse_({ ok: false, error: 'invalid row' });
       }
       recSheet.deleteRow(rowToDelete);
+      return jsonResponse_({ ok: true });
+    }
+
+    if (body.action === 'editRecurring') {
+      const recSheet = getNamedSheet_(RECURRING_SHEET_NAME);
+      const rowToEdit = Number(body.row);
+      if (!rowToEdit || rowToEdit < 2) {
+        return jsonResponse_({ ok: false, error: 'invalid row' });
+      }
+      const type = (body.type || '').trim();
+      const category = (body.category || '').trim();
+      const amount = Number(body.amount) || 0;
+      const note = body.note || '';
+      const day = Number(body.day) || 0;
+      if (!type || !category || !amount) {
+        return jsonResponse_({ ok: false, error: 'missing fields' });
+      }
+      recSheet.getRange(rowToEdit, 1, 1, 5).setValues([[type, category, amount, note, day || '']]);
       return jsonResponse_({ ok: true });
     }
 
@@ -245,7 +264,7 @@ function doPost(e) {
     const note = body.note || '';
 
     sheet.appendRow([date, type, category, amount, note]);
-    return jsonResponse_({ ok: true });
+    return jsonResponse_({ ok: true, row: sheet.getLastRow() });
   } catch (err) {
     return jsonResponse_({ ok: false, error: String(err) });
   }
