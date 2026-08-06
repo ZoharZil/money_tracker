@@ -1087,6 +1087,11 @@ async function fetchWithRetry(url, options, retries){
   }
   throw lastErr;
 }
+// מזהה ייחודי לכל בקשת "הוספה" - כך שאם הבקשה נשלחת שוב (בגלל ניסיון חוזר) השרת
+// מזהה שזו אותה בקשה בדיוק ולא יוצר שורה כפולה בגיליון.
+function genClientId(){
+  return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+}
 
 // ---------- Header PDF download ----------
 document.getElementById('pdfBtn').onclick = async () => {
@@ -1290,7 +1295,7 @@ document.getElementById('addRecurringBtn').onclick = async () => {
       const idx = state.recurring.findIndex(r => r.row === editing);
       if(idx !== -1) state.recurring[idx] = { row:editing, type:recSelectedType, category, amount, note, day };
     } else {
-      const res = await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'addRecurring', type:recSelectedType, category, amount, day, note }) });
+      const res = await fetchWithRetry(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'addRecurring', type:recSelectedType, category, amount, day, note, clientId: genClientId() }) });
       const data = await res.json();
       if(data && data.row){
         state.recurring.push({ row:data.row, type:recSelectedType, category, amount, note, day });
@@ -1336,7 +1341,7 @@ async function addAllMissingRecurring(){
   try{
     for(const r of missing){
       const date = dateForRecurringDay(r.day);
-      const res = await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ date, type:r.type, category:r.category, amount:r.amount, note:r.note }) });
+      const res = await fetchWithRetry(state.webAppUrl, { method:'POST', body: JSON.stringify({ date, type:r.type, category:r.category, amount:r.amount, note:r.note, clientId: genClientId() }) });
       const data = await res.json();
       if(data && data.row){
         state.transactions.push({ row:data.row, date, type:r.type, category:r.category, amount:r.amount, note:r.note });
@@ -1355,7 +1360,7 @@ async function addSingleMissingRecurring(row){
   showToast('מוסיף...');
   try{
     const date = dateForRecurringDay(r.day);
-    const res = await fetch(state.webAppUrl, { method:'POST', body: JSON.stringify({ date, type:r.type, category:r.category, amount:r.amount, note:r.note }) });
+    const res = await fetchWithRetry(state.webAppUrl, { method:'POST', body: JSON.stringify({ date, type:r.type, category:r.category, amount:r.amount, note:r.note, clientId: genClientId() }) });
     const data = await res.json();
     if(data && data.row){
       state.transactions.push({ row:data.row, date, type:r.type, category:r.category, amount:r.amount, note:r.note });
@@ -1611,9 +1616,9 @@ document.getElementById('saveAdd').onclick = async () => {
       const idx = state.transactions.findIndex(t => t.row === editing);
       if(idx !== -1) state.transactions[idx] = { row:editing, date, type:selectedType, category, amount, note };
     } else {
-      const res = await fetch(state.webAppUrl, {
+      const res = await fetchWithRetry(state.webAppUrl, {
         method:'POST',
-        body: JSON.stringify({date, type:selectedType, category, amount, note})
+        body: JSON.stringify({date, type:selectedType, category, amount, note, clientId: genClientId()})
       });
       const data = await res.json();
       // עדכון מקומי מיידי עם מספר השורה שחזר מהשרת - אין צורך לקרוא מחדש את כל הגיליון
