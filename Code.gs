@@ -44,6 +44,21 @@ function formatDateCell_(dateVal) {
   return String(dateVal);
 }
 
+// בודק אם כבר קיימת שורה עם אותו clientId בעמודה F, בטווח השורות האחרונות (עד 60 אחורה).
+// זה מה שהופך "הוספה" לבטוחה לניסיון חוזר: אם הבקשה כבר הצליחה בעבר אבל התשובה לא הגיעה
+// ללקוח בזמן, ניסיון נוסף לא ייצור שורה כפולה - הוא פשוט ימצא את השורה הקיימת ויחזיר אותה.
+function findExistingByClientId_(sheet, clientId) {
+  if (!clientId) return -1;
+  const lastRow = sheet.getLastRow();
+  const scanStart = Math.max(2, lastRow - 60 + 1);
+  if (lastRow < scanStart) return -1;
+  const ids = sheet.getRange(scanStart, 6, lastRow - scanStart + 1, 1).getValues();
+  for (let i = 0; i < ids.length; i++) {
+    if (ids[i][0] === clientId) return scanStart + i;
+  }
+  return -1;
+}
+
 // GET - מחזיר את כל התנועות, הקטגוריות, התקציבים, התנועות הקבועות וההגדרות
 function doGet(e) {
   try {
@@ -198,10 +213,15 @@ function doPost(e) {
       const amount = Number(body.amount) || 0;
       const note = body.note || '';
       const day = Number(body.day) || 0;
+      const clientId = body.clientId || '';
       if (!type || !category || !amount) {
         return jsonResponse_({ ok: false, error: 'missing fields' });
       }
-      recSheet.appendRow([type, category, amount, note, day || '']);
+      const existingRow = findExistingByClientId_(recSheet, clientId);
+      if (existingRow > 0) {
+        return jsonResponse_({ ok: true, row: existingRow, duplicate: true });
+      }
+      recSheet.appendRow([type, category, amount, note, day || '', clientId]);
       return jsonResponse_({ ok: true, row: recSheet.getLastRow() });
     }
 
@@ -262,8 +282,14 @@ function doPost(e) {
     const category = body.category || '';
     const amount = Number(body.amount) || 0;
     const note = body.note || '';
+    const clientId = body.clientId || '';
 
-    sheet.appendRow([date, type, category, amount, note]);
+    const existingRow = findExistingByClientId_(sheet, clientId);
+    if (existingRow > 0) {
+      return jsonResponse_({ ok: true, row: existingRow, duplicate: true });
+    }
+
+    sheet.appendRow([date, type, category, amount, note, clientId]);
     return jsonResponse_({ ok: true, row: sheet.getLastRow() });
   } catch (err) {
     return jsonResponse_({ ok: false, error: String(err) });
