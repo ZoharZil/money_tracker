@@ -1935,13 +1935,15 @@ function renderSummary(type, key, m){
   if(state.charts.pie) state.charts.pie.destroy();
   const pieCtx = document.getElementById('pieChart');
   if(sortedCats.length){
+    const pieTotal = sortedCats.reduce((s,c) => s + c[1], 0);
     state.charts.pie = new Chart(pieCtx, {
       type:'doughnut',
       data:{
         labels: sortedCats.map(c=>c[0]),
         datasets:[{ data: sortedCats.map(c=>c[1]), backgroundColor: sortedCats.map((_,i)=>CAT_PALETTE[i%CAT_PALETTE.length]), borderColor:'#121F30', borderWidth:2 }]
       },
-      options:{ plugins:{ legend:{ display:false } }, cutout:'62%', maintainAspectRatio:false }
+      options:{ plugins:{ legend:{ display:false } }, cutout:'62%', maintainAspectRatio:false },
+      plugins:[ makeCenterTextPlugin(pieTotal, getCssVar('--text'), getCssVar('--text-muted')) ]
     });
   }
 
@@ -2050,6 +2052,33 @@ function buildPdfReportContainer(type, key, m, catTotals, sortedCats){
   return container;
 }
 
+function getCssVar(name){
+  return getComputedStyle(document.body).getPropertyValue(name).trim();
+}
+// פלאגין ל-Chart.js שמצייר את הסכום הכולל במרכז גרף העוגה (בתוך החור)
+function makeCenterTextPlugin(total, valueColor, labelColor){
+  return {
+    id: 'centerTextTotal',
+    afterDraw(chart){
+      const area = chart.chartArea;
+      if(!area) return;
+      const ctx = chart.ctx;
+      const centerX = (area.left + area.right) / 2;
+      const centerY = (area.top + area.bottom) / 2;
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = "700 17px Heebo, sans-serif";
+      ctx.fillStyle = valueColor;
+      ctx.fillText(fmt(total), centerX, centerY - 8);
+      ctx.font = "400 11px Heebo, sans-serif";
+      ctx.fillStyle = labelColor;
+      ctx.fillText('סה״כ', centerX, centerY + 12);
+      ctx.restore();
+    }
+  };
+}
+
 function catBreakdownFor(txs, types){
   const totals = {};
   txs.filter(t => types.includes(t.type)).forEach(t => {
@@ -2063,6 +2092,7 @@ async function renderLabeledPieCanvas(titleText, sortedCatsArr){
   canvas.width = 640;
   canvas.height = 480;
   const ctx = canvas.getContext('2d');
+  const pieTotal = sortedCatsArr.reduce((s,c) => s + c[1], 0);
   const chart = new Chart(ctx, {
     type: 'doughnut',
     data: {
@@ -2077,6 +2107,7 @@ async function renderLabeledPieCanvas(titleText, sortedCatsArr){
     options: {
       responsive: false,
       animation: false,
+      cutout: '58%',
       plugins: {
         title: { display:true, text:titleText, color:'#111827', font:{ size:18, family:'Heebo', weight:'bold' }, padding:{bottom:14} },
         legend: {
@@ -2100,7 +2131,8 @@ async function renderLabeledPieCanvas(titleText, sortedCatsArr){
           }
         }
       }
-    }
+    },
+    plugins:[ makeCenterTextPlugin(pieTotal, '#111827', '#6b7280') ]
   });
   // wait a couple animation frames so the canvas is fully painted before we read it
   await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
