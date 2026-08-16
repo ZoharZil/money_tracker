@@ -2122,7 +2122,7 @@ function buildPdfReportContainer(type, key, m, catTotals, sortedCats){
 
   const txRows = sorted.length
     ? sorted.map(t => {
-        const isTopDay = EXPENSE_TYPES.includes(t.type) && wd.maxIdx >= 0 && new Date(t.date + 'T00:00:00').getDay() === wd.maxIdx;
+        const isTopDay = t.type === 'משתנה' && wd.maxIdx >= 0 && new Date(t.date + 'T00:00:00').getDay() === wd.maxIdx;
         const rowBg = isTopDay ? 'background:#FFF6F5;' : '';
         return `<tr style="${rowBg}">
         <td style="padding:5px 4px; border-top:1px solid #eee; font-size:11.5px;">${t.date}${isTopDay ? ' 📅' : ''}</td>
@@ -2337,6 +2337,7 @@ function avgByType(monthKeys, types){
 }
 // תחזית לחודש הנוכחי: הכנסה/קבועה/הלוואה לפי בפועל אם כבר קיים (או ממוצע אם עוד לא),
 // והוצאות משתנות תמיד לפי ממוצע 3 חודשים אחרונים (כי הן בדרך כלל חלקיות באמצע החודש)
+const MIN_FORECAST_HISTORY_MONTHS = 3;
 function buildForecast(currentM){
   const completed = getCompletedMonthKeys(3);
   const avgIncome = avgByType(completed, ['הכנסה']);
@@ -2354,7 +2355,11 @@ function buildForecast(currentM){
   const variableForecast = avgVariable;
   const surplus = incomeForecast - fixedForecast - loanForecast - variableForecast;
 
-  return { incomeForecast, fixedForecast, loanForecast, variableForecast, surplus, avgFixed, avgLoan, hasHistory: completed.length > 0 };
+  return {
+    incomeForecast, fixedForecast, loanForecast, variableForecast, surplus, avgFixed, avgLoan,
+    monthsAvailable: completed.length,
+    hasHistory: completed.length >= MIN_FORECAST_HISTORY_MONTHS
+  };
 }
 // תחזית תזרים לפי הקצב עד כה החודש (רק כשבאמת צופים בחודש הנוכחי, לא בעבר/עתיד דרך החצים)
 function paceProjection(currentMonthKey, currentM){
@@ -2381,7 +2386,9 @@ function lastCompletedMonthActual(){
 // ניתוח "יום יקר בשבוע" - ממוצע הוצאה לפי יום בשבוע (לא תאריך ספציפי בחודש)
 function weekdayAnalysis(txs){
   const totals = [0,0,0,0,0,0,0], counts = [0,0,0,0,0,0,0];
-  txs.filter(t => EXPENSE_TYPES.includes(t.type)).forEach(t => {
+  // רק הוצאות משתנות - להוצאות קבועות ולהלוואות יש תאריך תשלום קבוע שנופל על יום שונה
+  // בשבוע כל חודש, ולכן לא משקף התנהגות הוצאה אמיתית לפי יום בשבוע
+  txs.filter(t => t.type === 'משתנה').forEach(t => {
     const wd = new Date(t.date + 'T00:00:00').getDay();
     totals[wd] += t.amount;
     counts[wd] += 1;
@@ -2410,27 +2417,31 @@ function renderForecast(key, m){
   let html = '';
 
   if(!forecast.hasHistory){
-    html += `<div class="card"><div class="empty">עדיין אין מספיק היסטוריה (חודשים קודמים עם תנועות) כדי לבנות תחזית מדויקת. ככל שתשתמשו באפליקציה יותר חודשים, התחזית תשתפר.</div></div>`;
+    const missing = MIN_FORECAST_HISTORY_MONTHS - forecast.monthsAvailable;
+    html += `<div class="card">
+      <h2>תחזית לחודש הנוכחי</h2>
+      <div class="empty">עדיין אין מספיק היסטוריה כדי לתת תחזית והמלצת חיסכון אמינות (יש ${forecast.monthsAvailable} מתוך ${MIN_FORECAST_HISTORY_MONTHS} חודשים שלמים נדרשים). עוד ${missing} ${missing===1?'חודש':'חודשים'} של שימוש וזה יופיע כאן. בינתיים אפשר להסתמך על "תחזית תזרים לפי קצב" למטה, שמבוססת רק על החודש הנוכחי.</div>
+    </div>`;
+  } else {
+    html += `<div class="card">
+      <h2>תחזית לחודש הנוכחי</h2>
+      <div class="budget-row"><div class="top-line"><span class="name">הכנסה חזויה</span><span class="nums">${fmt(forecast.incomeForecast)}</span></div></div>
+      <div class="budget-row"><div class="top-line"><span class="name">קבועות + הלוואות (חזוי)</span><span class="nums">${fmt(forecast.fixedForecast+forecast.loanForecast)}</span></div></div>
+      <div class="budget-row"><div class="top-line"><span class="name">משתנות (ממוצע 3 חודשים)</span><span class="nums">${fmt(forecast.variableForecast)}</span></div></div>
+      <div class="budget-row" style="margin-top:6px; padding-top:10px; border-top:1px solid var(--line);">
+        <div class="top-line"><span class="name" style="font-weight:700;">עודף חזוי</span><span class="nums ${forecast.surplus<0?'over':''}" style="font-weight:700;">${fmt(forecast.surplus)}</span></div>
+      </div>
+    </div>
+
+    <div class="card goal-card">
+      <h2>המלצת חיסכון</h2>
+      <div class="headline"><span class="cur mono">${fmt(recommendedSavings)}</span><span class="tgt">מתוך עודף של ${fmt(forecast.surplus)}</span></div>
+      <div class="sub">${savingsPct}% מהעודף החזוי, כדי להשאיר מרווח לבלת"מים.</div>
+      <div class="sub">רזרבת ביטחון מומלצת בנפרד: ${fmt(reserveTarget)} (${reserveMonths} חודשי קבועות+הלוואות) — לא מנוכה אוטומטית, זו המלצה כללית.</div>
+    </div>`;
   }
 
   html += `<div class="card">
-    <h2>תחזית לחודש הנוכחי</h2>
-    <div class="budget-row"><div class="top-line"><span class="name">הכנסה חזויה</span><span class="nums">${fmt(forecast.incomeForecast)}</span></div></div>
-    <div class="budget-row"><div class="top-line"><span class="name">קבועות + הלוואות (חזוי)</span><span class="nums">${fmt(forecast.fixedForecast+forecast.loanForecast)}</span></div></div>
-    <div class="budget-row"><div class="top-line"><span class="name">משתנות (ממוצע 3 חודשים)</span><span class="nums">${fmt(forecast.variableForecast)}</span></div></div>
-    <div class="budget-row" style="margin-top:6px; padding-top:10px; border-top:1px solid var(--line);">
-      <div class="top-line"><span class="name" style="font-weight:700;">עודף חזוי</span><span class="nums ${forecast.surplus<0?'over':''}" style="font-weight:700;">${fmt(forecast.surplus)}</span></div>
-    </div>
-  </div>
-
-  <div class="card goal-card">
-    <h2>המלצת חיסכון</h2>
-    <div class="headline"><span class="cur mono">${fmt(recommendedSavings)}</span><span class="tgt">מתוך עודף של ${fmt(forecast.surplus)}</span></div>
-    <div class="sub">${savingsPct}% מהעודף החזוי, כדי להשאיר מרווח לבלת"מים.</div>
-    <div class="sub">רזרבת ביטחון מומלצת בנפרד: ${fmt(reserveTarget)} (${reserveMonths} חודשי קבועות+הלוואות) — לא מנוכה אוטומטית, זו המלצה כללית.</div>
-  </div>
-
-  <div class="card">
     <h2>תחזית תזרים לפי קצב</h2>
     ${pace.isCurrentRealMonth ? `
       <div class="sub" style="margin-bottom:10px;">לפי הקצב עד היום (יום ${pace.dayOfMonth} מתוך ${pace.daysInMonth})</div>
