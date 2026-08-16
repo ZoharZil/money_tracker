@@ -2116,7 +2116,7 @@ function buildPdfReportContainer(type, key, m, catTotals, sortedCats){
 
   const weekdayInsightHtml = wd.maxIdx >= 0
     ? `<div style="background:#FFF1F0; border:1px solid #FFD4D1; border-radius:10px; padding:12px 14px; margin-bottom:20px; font-size:13px; color:#8a2e2a;">
-        📅 היום היקר בשבוע: <strong>יום ${wd.maxDayName}</strong> — בממוצע ${fmt(wd.maxAvg)} להוצאה (מסומן בטבלה למטה)
+        📅 היום היקר בשבוע: <strong>יום ${wd.maxDayName}</strong> — סה״כ ${fmt(wd.maxTotal)} הוצאו בימי ${wd.maxDayName} בתקופה זו (מסומן בטבלה למטה)
       </div>`
     : '';
 
@@ -2368,12 +2368,20 @@ function paceProjection(currentMonthKey, currentM){
   const isCurrentRealMonth = state.offsets.month === 0;
   const daysInMonth = new Date(y, mo, 0).getDate();
   const dayOfMonth = isCurrentRealMonth ? now.getDate() : daysInMonth;
-  const spentSoFar = (currentM.sums['קבועה']||0) + (currentM.sums['הלוואה']||0) + (currentM.sums['משתנה']||0);
+
+  // קבועות והלוואות כבר ידועות בוודאות ברגע שנרשמו - אין טעם "לפזר" אותן על פני החודש,
+  // זה מעוות את התחזית אם הן משולמות מוקדם בחודש (למשל שכר דירה ב-1 לחודש).
+  const fixedLoanSoFar = (currentM.sums['קבועה']||0) + (currentM.sums['הלוואה']||0);
+  // רק הוצאות משתנות מוערכות לפי קצב, כי הן אלה שבאמת מצטברות יום אחרי יום.
+  const variableSoFar = currentM.sums['משתנה'] || 0;
   const incomeSoFar = currentM.sums['הכנסה'] || 0;
-  const dailyAvgSpend = dayOfMonth > 0 ? spentSoFar / dayOfMonth : 0;
-  const projectedTotalSpend = dailyAvgSpend * daysInMonth;
+
+  const dailyAvgVariable = dayOfMonth > 0 ? variableSoFar / dayOfMonth : 0;
+  const projectedVariableTotal = dailyAvgVariable * daysInMonth;
+  const projectedTotalSpend = fixedLoanSoFar + projectedVariableTotal;
   const projectedBalance = incomeSoFar - projectedTotalSpend;
-  return { dayOfMonth, daysInMonth, spentSoFar, projectedTotalSpend, projectedBalance, isCurrentRealMonth };
+
+  return { dayOfMonth, daysInMonth, fixedLoanSoFar, variableSoFar, projectedVariableTotal, projectedTotalSpend, projectedBalance, isCurrentRealMonth };
 }
 function lastCompletedMonthActual(){
   const keys = getCompletedMonthKeys(1);
@@ -2393,14 +2401,14 @@ function weekdayAnalysis(txs){
     totals[wd] += t.amount;
     counts[wd] += 1;
   });
-  let maxIdx = -1, maxAvg = 0;
+  // מדורג לפי הסכום הכולל שיצא באותו יום בשבוע (לא לפי ממוצע לתנועה) - כך שהיום שמסומן
+  // הוא תמיד זה עם הסכום הגבוה ביותר בפועל, בהתאמה למה שמוצג ברשימה.
+  let maxIdx = -1, maxTotal = 0;
   for(let i = 0; i < 7; i++){
-    if(counts[i] > 0){
-      const avg = totals[i] / counts[i];
-      if(avg > maxAvg){ maxAvg = avg; maxIdx = i; }
-    }
+    if(totals[i] > maxTotal){ maxTotal = totals[i]; maxIdx = i; }
   }
-  return { totals, counts, maxIdx, maxAvg, maxDayName: maxIdx >= 0 ? WEEKDAY_FULL[maxIdx] : null };
+  const maxAvg = maxIdx >= 0 && counts[maxIdx] > 0 ? totals[maxIdx] / counts[maxIdx] : 0;
+  return { totals, counts, maxIdx, maxTotal, maxAvg, maxDayName: maxIdx >= 0 ? WEEKDAY_FULL[maxIdx] : null };
 }
 
 function renderForecast(key, m){
@@ -2445,9 +2453,13 @@ function renderForecast(key, m){
     <h2>תחזית תזרים לפי קצב</h2>
     ${pace.isCurrentRealMonth ? `
       <div class="sub" style="margin-bottom:10px;">לפי הקצב עד היום (יום ${pace.dayOfMonth} מתוך ${pace.daysInMonth})</div>
-      <div class="budget-row"><div class="top-line"><span class="name">הוצאתם עד כה</span><span class="nums">${fmt(pace.spentSoFar)}</span></div></div>
-      <div class="budget-row"><div class="top-line"><span class="name">תחזית הוצאות לסוף החודש</span><span class="nums">${fmt(pace.projectedTotalSpend)}</span></div></div>
+      <div class="budget-row"><div class="top-line"><span class="name">קבועות + הלוואות (כבר ידוע, לא מוערך)</span><span class="nums">${fmt(pace.fixedLoanSoFar)}</span></div></div>
+      <div class="budget-row"><div class="top-line"><span class="name">משתנות עד כה</span><span class="nums">${fmt(pace.variableSoFar)}</span></div></div>
+      <div class="budget-row"><div class="top-line"><span class="name">תחזית משתנות לסוף החודש (לפי קצב)</span><span class="nums">${fmt(pace.projectedVariableTotal)}</span></div></div>
       <div class="budget-row" style="margin-top:6px; padding-top:10px; border-top:1px solid var(--line);">
+        <div class="top-line"><span class="name" style="font-weight:700;">סה״כ הוצאות חזויות לסוף החודש</span><span class="nums" style="font-weight:700;">${fmt(pace.projectedTotalSpend)}</span></div>
+      </div>
+      <div class="budget-row">
         <div class="top-line"><span class="name" style="font-weight:700;">יתרה חזויה לסוף החודש</span><span class="nums ${pace.projectedBalance<0?'over':''}" style="font-weight:700;">${fmt(pace.projectedBalance)}</span></div>
       </div>
     ` : `<div class="empty">תחזית הקצב זמינה רק כשצופים בחודש הנוכחי בפועל (לא דרך החצים)</div>`}
@@ -2466,7 +2478,7 @@ function renderForecast(key, m){
 
   html += `<div class="card">
     <h2>היום היקר בשבוע</h2>
-    ${wd.maxIdx >= 0 ? `<div class="sub" style="margin-bottom:10px;">בממוצע ההוצאה הכי גבוהה היא בימי <strong style="color:var(--text);">${wd.maxDayName}</strong> - כ-${fmt(wd.maxAvg)} להוצאה</div>` : '<div class="empty">אין עדיין מספיק נתונים לניתוח</div>'}
+    ${wd.maxIdx >= 0 ? `<div class="sub" style="margin-bottom:10px;">ההוצאה הכוללת הכי גבוהה יוצאת בימי <strong style="color:var(--text);">${wd.maxDayName}</strong> - סה״כ ${fmt(wd.maxTotal)} בתקופה זו</div>` : '<div class="empty">אין עדיין מספיק נתונים לניתוח</div>'}
     <div class="weekday-list">
       ${WEEKDAY_FULL.map((name,i) => `
         <div class="weekday-row ${i===wd.maxIdx?'top':''}">
