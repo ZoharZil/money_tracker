@@ -718,6 +718,25 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     border-radius:20px; padding:6px 14px; font-family:inherit; font-size:11.5px; cursor:pointer;
   }
 
+  .weekday-list{display:flex; flex-direction:column; gap:6px;}
+  .weekday-row{display:flex; justify-content:space-between; align-items:center; padding:7px 10px; border-radius:10px; background:var(--surface-2); font-size:12.5px;}
+  .weekday-row.top{background:rgba(255,111,107,0.14); border:1px solid rgba(255,111,107,0.35);}
+  .weekday-row .wd-name{color:var(--text);}
+  .weekday-row .wd-amt{color:var(--text-muted);}
+  .weekday-row.top .wd-amt{color:var(--expense); font-weight:700;}
+
+  .range-fields{display:flex; gap:8px; margin-bottom:12px;}
+  .range-fields input{
+    flex:1; background:var(--surface); border:1px solid var(--line); color:var(--text);
+    border-radius:10px; padding:9px 10px; font-family:inherit; font-size:12.5px;
+  }
+  .range-toggle{
+    background:var(--surface); border:1px solid var(--line); color:var(--text-muted);
+    border-radius:20px; padding:6px 12px; font-family:inherit; font-size:11.5px; cursor:pointer;
+    margin-bottom:12px;
+  }
+  .range-toggle.active{background:var(--surface-3); color:var(--text); border-color:#33507a;}
+
   .tabs{display:flex; gap:8px; margin-bottom:14px;}
   .tabs button{
     flex:1; padding:10px; border-radius:12px; border:1px solid var(--line);
@@ -878,6 +897,11 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       <label for="urlInput">כתובת ה-Web App (Google Apps Script)</label>
       <input type="text" id="urlInput" placeholder="https://script.google.com/macros/s/.../exec">
     </div>
+    <div class="field">
+      <div class="field-label">התראות בדפדפן</div>
+      <div style="font-size:11.5px; color:var(--text-muted); margin-bottom:10px;">התראה מקומית כשיש חריגה מתקציב או תנועות קבועות שטרם נוספו. עובד רק כשהאפליקציה פתוחה בדפדפן (לא התראות רקע אמיתיות).</div>
+      <button class="btn ghost" id="enableNotifBtn" style="width:100%;">🔔 אפשר התראות</button>
+    </div>
     <div class="actions">
       <button class="btn ghost" id="cancelSettings">ביטול</button>
       <button class="btn primary" id="saveSettings">שמור והתחבר</button>
@@ -1013,6 +1037,11 @@ let state = {
   listSearch: '',
   listTypeFilter: new Set(['הכנסה','קבועה','משתנה','הלוואה','חיסכון']),
   listSort: 'date_desc', // date_desc | date_asc | amount_desc | amount_asc | category_asc | type_asc
+  listRangeOpen: false,
+  listAmountMin: '',
+  listAmountMax: '',
+  listDateFrom: '',
+  listDateTo: '',
   catFilterMode: 'all', // 'all' | 'קבועה' | 'משתנה' - for the category breakdown card
   recurringBannerExpanded: false,
   charts: {}
@@ -1117,6 +1146,7 @@ document.getElementById('themeBtn').onclick = () => {
 // ---------- Settings ----------
 document.getElementById('settingsBtn').onclick = () => {
   document.getElementById('urlInput').value = state.webAppUrl;
+  updateNotifBtnLabel();
   document.getElementById('settingsOverlay').classList.add('open');
 };
 document.getElementById('cancelSettings').onclick = () => {
@@ -1130,6 +1160,53 @@ document.getElementById('saveSettings').onclick = () => {
   document.getElementById('settingsOverlay').classList.remove('open');
   loadData();
 };
+
+// ---------- Local notifications (works only while the app is open in the browser) ----------
+function updateNotifBtnLabel(){
+  const btn = document.getElementById('enableNotifBtn');
+  if(!btn || typeof Notification === 'undefined'){
+    if(btn){ btn.textContent = '🔔 התראות לא נתמכות בדפדפן זה'; btn.disabled = true; }
+    return;
+  }
+  if(Notification.permission === 'granted') btn.textContent = '🔔 התראות מופעלות';
+  else if(Notification.permission === 'denied') btn.textContent = '🔔 התראות חסומות (שנו בהגדרות הדפדפן)';
+  else btn.textContent = '🔔 אפשר התראות';
+}
+document.getElementById('enableNotifBtn').onclick = async () => {
+  if(typeof Notification === 'undefined') return;
+  try{
+    await Notification.requestPermission();
+  }catch(e){}
+  updateNotifBtnLabel();
+};
+const notifiedThisSession = new Set();
+function notifyOnce(key, title, body){
+  if(typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+  if(notifiedThisSession.has(key)) return;
+  notifiedThisSession.add(key);
+  try{ new Notification(title, { body, icon: undefined }); }catch(e){}
+}
+function checkAndNotify(type, key, m){
+  if(!(type === 'month' && state.offsets.month === 0)) return; // רלוונטי רק לחודש הנוכחי בפועל
+  const income = m.sums['הכנסה'] || 0;
+  if(income > 0 && m.outflow > income){
+    notifyOnce('overage-total-' + key, 'חריגה מהתקציב', `ההוצאות החודש (${fmt(m.outflow)}) עברו את ההכנסות (${fmt(income)})`);
+  }
+  const catTotals = {};
+  m.txs.filter(t => EXPENSE_TYPES.includes(t.type)).forEach(t => { catTotals[t.category] = (catTotals[t.category]||0) + t.amount; });
+  state.budgets.filter(b => BUDGET_TYPES.includes(b.type) && b.budget > 0).forEach(b => {
+    if((catTotals[b.category]||0) > b.budget){
+      notifyOnce('overage-cat-' + key + '-' + b.category, 'חריגה מתקציב קטגוריה', `"${b.category}" חרגה מהתקציב שהוגדר לה`);
+    }
+  });
+  if(state.recurring.length){
+    const existing = new Set(state.transactions.filter(t => t.date && t.date.slice(0,7) === key).map(t => t.type + '|' + t.category));
+    const missing = state.recurring.filter(r => !existing.has(r.type + '|' + r.category));
+    if(missing.length > 0){
+      notifyOnce('recurring-missing-' + key, 'תנועות קבועות ממתינות', `יש ${missing.length} תנועות קבועות שטרם נוספו החודש`);
+    }
+  }
+}
 
 // ---------- Budgets ----------
 const BUDGET_TYPES = ['קבועה','משתנה','הלוואה'];
@@ -1706,6 +1783,7 @@ function render(){
   const m = computePeriod(type, key);
   const income = m.sums['הכנסה'] || 0;
   const pct = income > 0 ? Math.min(100, Math.round((m.outflow/income)*100)) : 0;
+  checkAndNotify(type, key, m);
 
   // recurring templates not yet added this real-world month
   let recurringBannerHtml = '';
@@ -1772,6 +1850,7 @@ function render(){
     <div class="tabs">
       <button id="tabSummary" class="${state.activeTab==='summary'?'active':''}">ניתוח</button>
       <button id="tabList" class="${state.activeTab==='list'?'active':''}">תנועות (${m.txs.length})</button>
+      ${type==='month' ? `<button id="tabForecast" class="${state.activeTab==='forecast'?'active':''}">תחזית</button>` : ''}
     </div>
 
     <div id="tabContent"></div>
@@ -1792,8 +1871,14 @@ function render(){
 
   document.getElementById('tabSummary').onclick = () => { state.activeTab='summary'; render(); };
   document.getElementById('tabList').onclick = () => { state.activeTab='list'; render(); };
+  if(document.getElementById('tabForecast')){
+    document.getElementById('tabForecast').onclick = () => { state.activeTab='forecast'; render(); };
+  }
+
+  if(type !== 'month' && state.activeTab === 'forecast') state.activeTab = 'summary'; // התחזית זמינה רק בתצוגה החודשית
 
   if(state.activeTab === 'summary') renderSummary(type, key, m);
+  else if(state.activeTab === 'forecast') renderForecast(key, m);
   else renderList(type, m.txs);
 }
 
@@ -2016,6 +2101,7 @@ async function shareReport(type, key){
 function buildPdfReportContainer(type, key, m, catTotals, sortedCats){
   const income = m.sums['הכנסה'] || 0;
   const sorted = [...m.txs].sort((a,b)=> b.date.localeCompare(a.date));
+  const wd = weekdayAnalysis(m.txs);
 
   const summaryRows = [
     ['הכנסות', fmt(income)],
@@ -2028,14 +2114,24 @@ function buildPdfReportContainer(type, key, m, catTotals, sortedCats){
     ? sortedCats.map(([cat,amt]) => `<tr><td style="padding:5px 0; border-top:1px solid #eee;">${cat}</td><td style="padding:5px 0; border-top:1px solid #eee; text-align:left;">${fmt(amt)}</td></tr>`).join('')
     : `<tr><td colspan="2" style="padding:8px 0; color:#999;">אין הוצאות בתקופה זו</td></tr>`;
 
+  const weekdayInsightHtml = wd.maxIdx >= 0
+    ? `<div style="background:#FFF1F0; border:1px solid #FFD4D1; border-radius:10px; padding:12px 14px; margin-bottom:20px; font-size:13px; color:#8a2e2a;">
+        📅 היום היקר בשבוע: <strong>יום ${wd.maxDayName}</strong> — בממוצע ${fmt(wd.maxAvg)} להוצאה (מסומן בטבלה למטה)
+      </div>`
+    : '';
+
   const txRows = sorted.length
-    ? sorted.map(t => `<tr>
-        <td style="padding:5px 4px; border-top:1px solid #eee; font-size:11.5px;">${t.date}</td>
+    ? sorted.map(t => {
+        const isTopDay = EXPENSE_TYPES.includes(t.type) && wd.maxIdx >= 0 && new Date(t.date + 'T00:00:00').getDay() === wd.maxIdx;
+        const rowBg = isTopDay ? 'background:#FFF6F5;' : '';
+        return `<tr style="${rowBg}">
+        <td style="padding:5px 4px; border-top:1px solid #eee; font-size:11.5px;">${t.date}${isTopDay ? ' 📅' : ''}</td>
         <td style="padding:5px 4px; border-top:1px solid #eee; font-size:11.5px;">${t.type}</td>
         <td style="padding:5px 4px; border-top:1px solid #eee; font-size:11.5px;">${t.category}</td>
         <td style="padding:5px 4px; border-top:1px solid #eee; font-size:11.5px; text-align:left;">${t.type==='הכנסה'?'+':'-'}${fmt(t.amount)}</td>
         <td style="padding:5px 4px; border-top:1px solid #eee; font-size:11px; color:#777;">${t.note||''}</td>
-      </tr>`).join('')
+      </tr>`;
+      }).join('')
     : `<tr><td colspan="5" style="padding:8px 0; color:#999;">אין תנועות בתקופה זו</td></tr>`;
 
   const container = document.createElement('div');
@@ -2044,6 +2140,7 @@ function buildPdfReportContainer(type, key, m, catTotals, sortedCats){
     <div style="font-size:22px; font-weight:700; margin-bottom:2px;">📊 דוח פיננסי</div>
     <div style="font-size:13px; color:#666; margin-bottom:18px;">${periodLabel(type, key)}</div>
     <table style="width:100%; border-collapse:collapse; font-size:14px; margin-bottom:24px;">${summaryRows}</table>
+    ${weekdayInsightHtml}
     <div style="font-size:15px; font-weight:700; margin-bottom:8px;">${catSectionTitle()}</div>
     <table style="width:100%; border-collapse:collapse; font-size:13px; margin-bottom:24px;">${catRows}</table>
     <div style="font-size:15px; font-weight:700; margin-bottom:8px;">תנועות בתקופה (${sorted.length})</div>
@@ -2217,6 +2314,192 @@ async function downloadReportPdf(type, key){
   }
 }
 
+const WEEKDAY_FULL = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+
+// מחזיר את מפתחות החודשים ה"סגורים" האחרונים (לא כולל החודש הנוכחי), מהאחרון לישן ביותר,
+// רק חודשים שבפועל יש בהם תנועות (כדי לא לדלל את הממוצע בחודשים ריקים).
+function getCompletedMonthKeys(n){
+  const keys = [];
+  for(let i = 1; i <= n; i++){
+    const k = monthKeyFromOffset(-i);
+    if(computePeriod('month', k).txs.length > 0) keys.push(k);
+  }
+  return keys;
+}
+function avgByType(monthKeys, types){
+  if(!monthKeys.length) return 0;
+  let total = 0;
+  monthKeys.forEach(k => {
+    const mm = computePeriod('month', k);
+    types.forEach(t => { total += mm.sums[t] || 0; });
+  });
+  return total / monthKeys.length;
+}
+// תחזית לחודש הנוכחי: הכנסה/קבועה/הלוואה לפי בפועל אם כבר קיים (או ממוצע אם עוד לא),
+// והוצאות משתנות תמיד לפי ממוצע 3 חודשים אחרונים (כי הן בדרך כלל חלקיות באמצע החודש)
+function buildForecast(currentM){
+  const completed = getCompletedMonthKeys(3);
+  const avgIncome = avgByType(completed, ['הכנסה']);
+  const avgFixed = avgByType(completed, ['קבועה']);
+  const avgLoan = avgByType(completed, ['הלוואה']);
+  const avgVariable = avgByType(completed, ['משתנה']);
+
+  const curIncome = currentM.sums['הכנסה'] || 0;
+  const curFixed = currentM.sums['קבועה'] || 0;
+  const curLoan = currentM.sums['הלוואה'] || 0;
+
+  const incomeForecast = curIncome > 0 ? curIncome : avgIncome;
+  const fixedForecast = Math.max(curFixed, avgFixed);
+  const loanForecast = Math.max(curLoan, avgLoan);
+  const variableForecast = avgVariable;
+  const surplus = incomeForecast - fixedForecast - loanForecast - variableForecast;
+
+  return { incomeForecast, fixedForecast, loanForecast, variableForecast, surplus, avgFixed, avgLoan, hasHistory: completed.length > 0 };
+}
+// תחזית תזרים לפי הקצב עד כה החודש (רק כשבאמת צופים בחודש הנוכחי, לא בעבר/עתיד דרך החצים)
+function paceProjection(currentMonthKey, currentM){
+  const [y, mo] = currentMonthKey.split('-').map(Number);
+  const now = new Date();
+  const isCurrentRealMonth = state.offsets.month === 0;
+  const daysInMonth = new Date(y, mo, 0).getDate();
+  const dayOfMonth = isCurrentRealMonth ? now.getDate() : daysInMonth;
+  const spentSoFar = (currentM.sums['קבועה']||0) + (currentM.sums['הלוואה']||0) + (currentM.sums['משתנה']||0);
+  const incomeSoFar = currentM.sums['הכנסה'] || 0;
+  const dailyAvgSpend = dayOfMonth > 0 ? spentSoFar / dayOfMonth : 0;
+  const projectedTotalSpend = dailyAvgSpend * daysInMonth;
+  const projectedBalance = incomeSoFar - projectedTotalSpend;
+  return { dayOfMonth, daysInMonth, spentSoFar, projectedTotalSpend, projectedBalance, isCurrentRealMonth };
+}
+function lastCompletedMonthActual(){
+  const keys = getCompletedMonthKeys(1);
+  if(!keys.length) return null;
+  const k = keys[0];
+  const mm = computePeriod('month', k);
+  const income = mm.sums['הכנסה'] || 0;
+  return { key:k, income, outflow: mm.expenses, actualSurplus: income - mm.expenses };
+}
+// ניתוח "יום יקר בשבוע" - ממוצע הוצאה לפי יום בשבוע (לא תאריך ספציפי בחודש)
+function weekdayAnalysis(txs){
+  const totals = [0,0,0,0,0,0,0], counts = [0,0,0,0,0,0,0];
+  txs.filter(t => EXPENSE_TYPES.includes(t.type)).forEach(t => {
+    const wd = new Date(t.date + 'T00:00:00').getDay();
+    totals[wd] += t.amount;
+    counts[wd] += 1;
+  });
+  let maxIdx = -1, maxAvg = 0;
+  for(let i = 0; i < 7; i++){
+    if(counts[i] > 0){
+      const avg = totals[i] / counts[i];
+      if(avg > maxAvg){ maxAvg = avg; maxIdx = i; }
+    }
+  }
+  return { totals, counts, maxIdx, maxAvg, maxDayName: maxIdx >= 0 ? WEEKDAY_FULL[maxIdx] : null };
+}
+
+function renderForecast(key, m){
+  const content = document.getElementById('tabContent');
+  const forecast = buildForecast(m);
+  const reserveMonths = Number(state.settings.reserve_months) || 1;
+  const savingsPct = Number(state.settings.savings_percentage) || 70;
+  const reserveTarget = reserveMonths * (forecast.avgFixed + forecast.avgLoan);
+  const recommendedSavings = Math.max(0, forecast.surplus) * (savingsPct / 100);
+  const pace = paceProjection(key, m);
+  const lastMonth = lastCompletedMonthActual();
+  const wd = weekdayAnalysis(m.txs);
+
+  let html = '';
+
+  if(!forecast.hasHistory){
+    html += `<div class="card"><div class="empty">עדיין אין מספיק היסטוריה (חודשים קודמים עם תנועות) כדי לבנות תחזית מדויקת. ככל שתשתמשו באפליקציה יותר חודשים, התחזית תשתפר.</div></div>`;
+  }
+
+  html += `<div class="card">
+    <h2>תחזית לחודש הנוכחי</h2>
+    <div class="budget-row"><div class="top-line"><span class="name">הכנסה חזויה</span><span class="nums">${fmt(forecast.incomeForecast)}</span></div></div>
+    <div class="budget-row"><div class="top-line"><span class="name">קבועות + הלוואות (חזוי)</span><span class="nums">${fmt(forecast.fixedForecast+forecast.loanForecast)}</span></div></div>
+    <div class="budget-row"><div class="top-line"><span class="name">משתנות (ממוצע 3 חודשים)</span><span class="nums">${fmt(forecast.variableForecast)}</span></div></div>
+    <div class="budget-row" style="margin-top:6px; padding-top:10px; border-top:1px solid var(--line);">
+      <div class="top-line"><span class="name" style="font-weight:700;">עודף חזוי</span><span class="nums ${forecast.surplus<0?'over':''}" style="font-weight:700;">${fmt(forecast.surplus)}</span></div>
+    </div>
+  </div>
+
+  <div class="card goal-card">
+    <h2>המלצת חיסכון</h2>
+    <div class="headline"><span class="cur mono">${fmt(recommendedSavings)}</span><span class="tgt">מתוך עודף של ${fmt(forecast.surplus)}</span></div>
+    <div class="sub">${savingsPct}% מהעודף החזוי, כדי להשאיר מרווח לבלת"מים.</div>
+    <div class="sub">רזרבת ביטחון מומלצת בנפרד: ${fmt(reserveTarget)} (${reserveMonths} חודשי קבועות+הלוואות) — לא מנוכה אוטומטית, זו המלצה כללית.</div>
+  </div>
+
+  <div class="card">
+    <h2>תחזית תזרים לפי קצב</h2>
+    ${pace.isCurrentRealMonth ? `
+      <div class="sub" style="margin-bottom:10px;">לפי הקצב עד היום (יום ${pace.dayOfMonth} מתוך ${pace.daysInMonth})</div>
+      <div class="budget-row"><div class="top-line"><span class="name">הוצאתם עד כה</span><span class="nums">${fmt(pace.spentSoFar)}</span></div></div>
+      <div class="budget-row"><div class="top-line"><span class="name">תחזית הוצאות לסוף החודש</span><span class="nums">${fmt(pace.projectedTotalSpend)}</span></div></div>
+      <div class="budget-row" style="margin-top:6px; padding-top:10px; border-top:1px solid var(--line);">
+        <div class="top-line"><span class="name" style="font-weight:700;">יתרה חזויה לסוף החודש</span><span class="nums ${pace.projectedBalance<0?'over':''}" style="font-weight:700;">${fmt(pace.projectedBalance)}</span></div>
+      </div>
+    ` : `<div class="empty">תחזית הקצב זמינה רק כשצופים בחודש הנוכחי בפועל (לא דרך החצים)</div>`}
+  </div>`;
+
+  if(lastMonth){
+    html += `<div class="card">
+      <h2>סיכום בפועל - ${monthLabelHe(lastMonth.key)}</h2>
+      <div class="budget-row"><div class="top-line"><span class="name">הכנסות</span><span class="nums">${fmt(lastMonth.income)}</span></div></div>
+      <div class="budget-row"><div class="top-line"><span class="name">הוצאות</span><span class="nums">${fmt(lastMonth.outflow)}</span></div></div>
+      <div class="budget-row" style="margin-top:6px; padding-top:10px; border-top:1px solid var(--line);">
+        <div class="top-line"><span class="name" style="font-weight:700;">נחסך בפועל</span><span class="nums ${lastMonth.actualSurplus<0?'over':''}" style="font-weight:700;">${fmt(lastMonth.actualSurplus)}</span></div>
+      </div>
+    </div>`;
+  }
+
+  html += `<div class="card">
+    <h2>היום היקר בשבוע</h2>
+    ${wd.maxIdx >= 0 ? `<div class="sub" style="margin-bottom:10px;">בממוצע ההוצאה הכי גבוהה היא בימי <strong style="color:var(--text);">${wd.maxDayName}</strong> - כ-${fmt(wd.maxAvg)} להוצאה</div>` : '<div class="empty">אין עדיין מספיק נתונים לניתוח</div>'}
+    <div class="weekday-list">
+      ${WEEKDAY_FULL.map((name,i) => `
+        <div class="weekday-row ${i===wd.maxIdx?'top':''}">
+          <span class="wd-name">${name}</span>
+          <span class="wd-amt mono">${wd.counts[i] ? fmt(wd.totals[i]) : '—'}</span>
+        </div>
+      `).join('')}
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>הגדרות תחזית</h2>
+    <div class="field">
+      <label for="reserveMonthsInput">חודשי הוצאות לרזרבה</label>
+      <input type="number" id="reserveMonthsInput" min="0" step="0.5" value="${reserveMonths}">
+    </div>
+    <div class="field">
+      <label for="savingsPctInput">אחוז מהעודף להמלצת חיסכון</label>
+      <input type="number" id="savingsPctInput" min="0" max="100" step="5" value="${savingsPct}">
+    </div>
+    <button class="btn primary" id="saveForecastSettings" style="width:100%;">שמור הגדרות</button>
+  </div>`;
+
+  content.innerHTML = html;
+
+  document.getElementById('saveForecastSettings').onclick = async () => {
+    const rm = parseFloat(document.getElementById('reserveMonthsInput').value) || 0;
+    const sp = parseFloat(document.getElementById('savingsPctInput').value) || 0;
+    const btn = document.getElementById('saveForecastSettings');
+    btn.textContent = 'שומר…'; btn.disabled = true;
+    try{
+      await fetchWithRetry(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'setSetting', key:'reserve_months', value:rm }) });
+      await fetchWithRetry(state.webAppUrl, { method:'POST', body: JSON.stringify({ action:'setSetting', key:'savings_percentage', value:sp }) });
+      state.settings.reserve_months = rm;
+      state.settings.savings_percentage = sp;
+      showToast('ההגדרות נשמרו');
+      render();
+    }catch(err){
+      showToast('שגיאה בשמירת ההגדרות');
+    }
+    btn.textContent = 'שמור הגדרות'; btn.disabled = false;
+  };
+}
+
 function renderList(type, txs){
   const content = document.getElementById('tabContent');
   if(txs.length === 0){
@@ -2235,8 +2518,16 @@ function renderList(type, txs){
 
   function filtered(){
     const q = state.listSearch.trim().toLowerCase();
+    const min = parseFloat(state.listAmountMin);
+    const max = parseFloat(state.listAmountMax);
+    const from = state.listDateFrom;
+    const to = state.listDateTo;
     return txs.filter(t => state.listTypeFilter.has(t.type) &&
-      (!q || t.category.toLowerCase().includes(q) || (t.note||'').toLowerCase().includes(q)));
+      (!q || t.category.toLowerCase().includes(q) || (t.note||'').toLowerCase().includes(q)) &&
+      (isNaN(min) || t.amount >= min) &&
+      (isNaN(max) || t.amount <= max) &&
+      (!from || t.date >= from) &&
+      (!to || t.date <= to));
   }
 
   function sortList(list){
@@ -2275,6 +2566,17 @@ function renderList(type, txs){
 
   content.innerHTML = `
     <div class="search-bar"><input type="text" id="txSearchInput" placeholder="חיפוש לפי קטגוריה או הערה…" value="${state.listSearch.replace(/"/g,'&quot;')}"></div>
+    <button class="range-toggle ${state.listRangeOpen?'active':''}" id="toggleRangeFilters">חיפוש מתקדם (סכום/תאריך) ${state.listRangeOpen?'▴':'▾'}</button>
+    ${state.listRangeOpen ? `
+      <div class="range-fields">
+        <input type="number" id="amountMinInput" placeholder="סכום מ-" value="${state.listAmountMin}">
+        <input type="number" id="amountMaxInput" placeholder="עד סכום" value="${state.listAmountMax}">
+      </div>
+      <div class="range-fields">
+        <input type="date" id="dateFromInput" value="${state.listDateFrom}">
+        <input type="date" id="dateToInput" value="${state.listDateTo}">
+      </div>
+    ` : ''}
     <div class="sort-bar">
       <label for="txSortSelect">מיון:</label>
       <select id="txSortSelect">
@@ -2286,6 +2588,17 @@ function renderList(type, txs){
     </div>
     <div id="txListContainer"></div>
   `;
+
+  document.getElementById('toggleRangeFilters').onclick = () => {
+    state.listRangeOpen = !state.listRangeOpen;
+    renderList(type, txs);
+  };
+  if(state.listRangeOpen){
+    document.getElementById('amountMinInput').oninput = (e) => { state.listAmountMin = e.target.value; renderItems(); };
+    document.getElementById('amountMaxInput').oninput = (e) => { state.listAmountMax = e.target.value; renderItems(); };
+    document.getElementById('dateFromInput').onchange = (e) => { state.listDateFrom = e.target.value; renderItems(); };
+    document.getElementById('dateToInput').onchange = (e) => { state.listDateTo = e.target.value; renderItems(); };
+  }
 
   document.getElementById('txSearchInput').oninput = (e) => {
     state.listSearch = e.target.value;
