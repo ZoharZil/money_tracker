@@ -874,11 +874,14 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       <input type="number" id="amountInput" inputmode="decimal" step="any" placeholder="0">
     </div>
     <div class="field" id="installmentsField">
-      <label for="installmentsInput">מספר תשלומים</label>
-      <select id="installmentsInput">
-        <option value="1">תשלום אחד</option>
-        ${Array.from({length:35}, (_,i) => i+2).map(n => `<option value="${n}">${n} תשלומים</option>`).join('')}
-      </select>
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+        <input type="checkbox" id="installmentsCheckbox" style="width:16px; height:16px;">
+        <span>פיצול לתשלומים</span>
+      </label>
+      <div id="installmentsPickerWrap" style="display:none; margin-top:10px;">
+        <label for="installmentsInput">מספר תשלומים</label>
+        <select id="installmentsInput"></select>
+      </div>
     </div>
     <div class="field">
       <label for="dateInput">תאריך</label>
@@ -1680,6 +1683,13 @@ document.querySelectorAll('#typePick button').forEach(btn => {
     refreshCatSelect();
   };
 });
+// ממלאים את רשימת מספרי התשלומים (2 עד 36) - נעשה בקוד, לא ב-HTML סטטי
+document.getElementById('installmentsInput').innerHTML =
+  Array.from({length:35}, (_,i) => i+2).map(n => `<option value="${n}">${n} תשלומים</option>`).join('');
+document.getElementById('installmentsCheckbox').onchange = (e) => {
+  document.getElementById('installmentsPickerWrap').style.display = e.target.checked ? 'block' : 'none';
+};
+
 document.getElementById('addBtn').onclick = () => {
   state.editingRow = null;
   document.getElementById('addSheetTitle').textContent = 'תנועה חדשה';
@@ -1687,7 +1697,9 @@ document.getElementById('addBtn').onclick = () => {
   document.getElementById('dateInput').value = new Date().toISOString().slice(0,10);
   document.getElementById('amountInput').value = '';
   document.getElementById('noteInput').value = '';
-  document.getElementById('installmentsInput').value = '1';
+  document.getElementById('installmentsCheckbox').checked = false;
+  document.getElementById('installmentsInput').value = '2';
+  document.getElementById('installmentsPickerWrap').style.display = 'none';
   document.getElementById('installmentsField').style.display = '';
   document.querySelectorAll('#typePick button').forEach(b=>b.classList.remove('sel'));
   const defBtn = document.querySelector('#typePick button[data-type="משתנה"]');
@@ -1701,7 +1713,8 @@ function openEditTx(row){
   state.editingRow = row;
   document.getElementById('addSheetTitle').textContent = 'עריכת תנועה';
   document.getElementById('saveAdd').textContent = 'עדכן';
-  document.getElementById('installmentsInput').value = '1';
+  document.getElementById('installmentsCheckbox').checked = false;
+  document.getElementById('installmentsPickerWrap').style.display = 'none';
   document.getElementById('installmentsField').style.display = 'none'; // עריכת תשלומים בתשלומים לא נתמכת - רק בהוספה חדשה
   document.querySelectorAll('#typePick button').forEach(b=>b.classList.remove('sel'));
   const typeBtn = document.querySelector(`#typePick button[data-type="${tx.type}"]`);
@@ -1751,7 +1764,9 @@ document.getElementById('saveAdd').onclick = async () => {
       const idx = state.transactions.findIndex(t => t.row === editing);
       if(idx !== -1) state.transactions[idx] = { row:editing, date, type:selectedType, category, amount, note };
     } else {
-      const installments = parseInt(document.getElementById('installmentsInput').value, 10) || 1;
+      const installments = document.getElementById('installmentsCheckbox').checked
+        ? (parseInt(document.getElementById('installmentsInput').value, 10) || 1)
+        : 1;
       if(installments > 1){
         const amounts = splitAmountInstallments(amount, installments);
         for(let i = 0; i < installments; i++){
